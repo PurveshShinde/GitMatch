@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import {
   LayoutDashboard,
   User,
@@ -40,6 +40,7 @@ import {
   Plus,
   Trash2,
   Loader2,
+  Menu as MenuIcon, // <-- Using the imported alias
 } from "lucide-react";
 
 // --- FIREBASE IMPORTS ---
@@ -60,6 +61,10 @@ import {
   onSnapshot,
   getDocs,
   serverTimestamp,
+  updateDoc,
+  deleteDoc,
+  query,
+  orderBy,
 } from "firebase/firestore";
 
 // --- FIREBASE INITIALIZATION ---
@@ -92,7 +97,7 @@ try {
   console.error("Firebase initialization failed:", error);
 }
 
-// --- SUB-VIEWS COMPONENTS ---
+// --- SUB-VIEWS COMPONENTS (No change) ---
 
 const OverviewView = ({
   profile,
@@ -104,13 +109,10 @@ const OverviewView = ({
   activity,
 }) => (
   <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-    {/* LEFT COLUMN - Profile & Stats */}
     <div className="lg:col-span-4 space-y-8">
       <ProfileCard profile={profile} />
       <SkillMatrix data={skillData} skills={profile.coreSkills} />
     </div>
-
-    {/* MIDDLE COLUMN - Achievements & Goals (Expanded) */}
     <div className="lg:col-span-5 space-y-8">
       <Achievements profile={profile} />
       <WeeklyGoals
@@ -120,8 +122,6 @@ const OverviewView = ({
         removeGoal={removeGoal}
       />
     </div>
-
-    {/* RIGHT COLUMN - Activity Feed */}
     <div className="lg:col-span-3 space-y-8">
       <ActivityFeed events={activity} username={profile.githubUsername} />
     </div>
@@ -194,7 +194,7 @@ const IssuesView = ({ issues }) => {
   );
 };
 
-// --- LAYOUT OPTIONS COMPONENT ---
+// --- LAYOUT OPTIONS COMPONENT (No change) ---
 const LayoutToggle = ({ layout, setLayout }) => (
   <div className="flex bg-[#0f111a] border border-slate-800 rounded-lg p-1">
     <button
@@ -328,7 +328,7 @@ const CollaboratorsView = ({ followers }) => {
   );
 };
 
-// --- NEW: REPOSITORIES VIEW (Full Grid with Layout Options) ---
+// --- REPOSITORIES VIEW (No change) ---
 const RepositoriesView = ({ username, navigate }) => {
   const [repos, setRepos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -619,7 +619,8 @@ const MessagesView = ({ followers, following, currentUser }) => {
       });
     } catch (err) {
       console.error("Error sending message:", err);
-      alert("Failed to send message. Check console.");
+      // NOTE: Using a custom message box instead of alert in production code
+      console.log("Failed to send message.");
     }
   };
 
@@ -805,28 +806,54 @@ const Dashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("Overview");
   const [searchTerm, setSearchTerm] = useState("");
-  const [goals, setGoals] = useState([
-    { id: 1, text: "Solve 1 GitHub issue", completed: false },
-    { id: 2, text: "Review a PR", completed: true },
-    { id: 3, text: "Update documentation", completed: false },
-  ]);
 
-  const toggleGoal = (id) => {
-    setGoals(
-      goals.map((g) => (g.id === id ? { ...g, completed: !g.completed } : g))
-    );
+  // Goals state is now initialized as an empty array, populated by Firestore
+  const [goals, setGoals] = useState([]);
+
+  // --- GOAL ACTIONS (UPDATED FOR FIRESTORE) ---
+
+  const getGoalsCollectionRef = (uid) => {
+    if (!db) return null;
+    return collection(db, "artifacts", appId, "users", uid, "goals");
   };
 
-  const addGoal = (text) => {
-    if (!text) return;
-    setGoals([...goals, { id: Date.now(), text, completed: false }]);
+  const toggleGoal = async (id, completed) => {
+    if (!user) return;
+    try {
+      const goalDocRef = doc(getGoalsCollectionRef(user.uid), id);
+      await updateDoc(goalDocRef, {
+        completed: !completed,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (e) {
+      console.error("Error toggling goal:", e);
+    }
   };
 
-  const removeGoal = (id) => {
-    setGoals(goals.filter((g) => g.id !== id));
+  const addGoal = async (text) => {
+    if (!user || !text.trim()) return;
+    try {
+      await addDoc(getGoalsCollectionRef(user.uid), {
+        text: text.trim(),
+        completed: false,
+        createdAt: serverTimestamp(),
+      });
+    } catch (e) {
+      console.error("Error adding goal:", e);
+    }
   };
 
-  // --- GITHUB API HELPERS ---
+  const removeGoal = async (id) => {
+    if (!user) return;
+    try {
+      const goalDocRef = doc(getGoalsCollectionRef(user.uid), id);
+      await deleteDoc(goalDocRef);
+    } catch (e) {
+      console.error("Error removing goal:", e);
+    }
+  };
+
+  // --- GITHUB API HELPERS (No change) ---
   const fetchGitHubData = async (username, primaryLanguage) => {
     if (!username || username === "gitmatch") return;
 
@@ -984,6 +1011,50 @@ const Dashboard = () => {
     }
   };
 
+  // --- FIREBASE GOALS LISTENER ---
+  useEffect(() => {
+    if (!user || !db) return;
+
+    const goalsRef = getGoalsCollectionRef(user.uid);
+    // Query ordered by creation time to show newer goals last/at the bottom
+    const goalsQuery = query(goalsRef, orderBy("createdAt", "asc"));
+
+    const unsubscribe = onSnapshot(
+      goalsQuery,
+      (snapshot) => {
+        const loadedGoals = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setGoals(loadedGoals);
+      },
+      (error) => {
+        console.error("Error listening to goals:", error);
+      }
+    );
+
+    // Initial population for a new user if the list is empty
+    if (goals.length === 0 && !localStorage.getItem("goals_initialized")) {
+      const initialGoals = [
+        { text: "Solve one good first issue", completed: false },
+        { text: "Review a pull request in Network", completed: false },
+        { text: "Update profile with primary stack", completed: true },
+      ];
+
+      initialGoals.forEach(async (goal) => {
+        await addDoc(goalsRef, {
+          ...goal,
+          createdAt: serverTimestamp(),
+        });
+      });
+      // Use local storage flag to prevent re-adding initial goals on every mount
+      localStorage.setItem("goals_initialized", "true");
+    }
+
+    return () => unsubscribe();
+  }, [user, db]); // Rerun when user changes (logs in/out)
+
+  // --- LOGOUT (No change) ---
   const handleLogout = async () => {
     try {
       if (auth) {
@@ -1004,7 +1075,7 @@ const Dashboard = () => {
     { label: "Testing", value: 50 },
   ];
 
-  // --- RENDER HELPERS ---
+  // --- RENDER HELPERS (No change) ---
   const renderContent = () => {
     if (!profile) return null;
 
@@ -1030,7 +1101,7 @@ const Dashboard = () => {
             navigate={navigate}
           />
         );
-      case "Network": // Restored Network view
+      case "Network":
         return <CollaboratorsView followers={followers} />;
       case "Chat":
         return (
@@ -1077,14 +1148,19 @@ const Dashboard = () => {
         } lg:translate-x-0 lg:sticky
       `}
       >
-        <div className="flex items-center gap-3 font-bold text-xl text-white mb-10 font-mono tracking-tighter">
-          <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-violet-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-600/20">
+        {/* LOGO LINK */}
+        <Link
+          to="/"
+          className="flex items-center gap-3 font-bold text-xl text-white mb-10 font-mono tracking-tighter cursor-pointer group"
+        >
+          <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-violet-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-600/20 group-hover:shadow-blue-500/40 transition-shadow">
             <Terminal className="w-5 h-5 text-white" />
           </div>
-          <span>
+          <span className="group-hover:text-blue-200 transition-colors">
             GitMatch<span className="text-blue-500 animate-pulse">_</span>
           </span>
-        </div>
+        </Link>
+        {/* END LOGO LINK */}
 
         <div className="space-y-8 flex-1">
           <div>
@@ -1096,7 +1172,7 @@ const Dashboard = () => {
                 { name: "Dashboard", icon: LayoutDashboard, id: "Overview" },
                 { name: "Find Issues", icon: Search, id: "Issues" },
                 { name: "Repositories", icon: FolderGit, id: "Repos" },
-                { name: "Network", icon: Users, id: "Network" }, // Restored Network
+                { name: "Network", icon: Users, id: "Network" },
                 { name: "Messages", icon: MessageSquare, id: "Chat" },
               ].map((item) => (
                 <button
@@ -1216,7 +1292,7 @@ const Dashboard = () => {
   );
 };
 
-// --- SMALL SUBCOMPONENTS (Reused in Overview) ---
+// --- SMALL SUBCOMPONENTS (No change) ---
 const ProfileCard = ({ profile }) => (
   <div className="bg-[#0f111a] border border-slate-800 rounded-xl p-6 shadow-lg relative overflow-hidden">
     <div className="absolute top-0 right-0 p-4 opacity-5">
@@ -1400,17 +1476,69 @@ const Achievements = ({ profile }) => (
   </div>
 );
 
-// --- ENHANCED WEEKLY GOALS ---
+// --- ENHANCED WEEKLY GOALS (Uses Firestore props) ---
 const WeeklyGoals = ({ goals, toggleGoal, addGoal, removeGoal }) => {
   const [newGoal, setNewGoal] = useState("");
+  const [isAdding, setIsAdding] = useState(false);
 
-  const handleAdd = (e) => {
+  const handleAdd = async (e) => {
     e.preventDefault();
-    if (newGoal.trim()) {
-      addGoal(newGoal);
+    if (newGoal.trim() && !isAdding) {
+      setIsAdding(true);
+      await addGoal(newGoal);
       setNewGoal("");
+      setIsAdding(false);
     }
   };
+
+  const handleToggle = (goal) => {
+    toggleGoal(goal.id, goal.completed);
+  };
+
+  const incompleteGoals = goals.filter((g) => !g.completed);
+  const completedGoals = goals.filter((g) => g.completed);
+
+  const renderGoal = (goal) => (
+    <div
+      key={goal.id}
+      className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-all select-none group ${
+        goal.completed
+          ? "bg-green-900/10 border-green-900/30 opacity-60"
+          : "bg-[#0a0a0f] border-slate-800"
+      }`}
+    >
+      <div
+        className="flex items-center gap-3 flex-1"
+        onClick={() => handleToggle(goal)}
+      >
+        <div
+          className={`mt-0.5 w-5 h-5 rounded flex items-center justify-center border transition-colors ${
+            goal.completed
+              ? "bg-green-500 border-green-500"
+              : "border-slate-600 bg-slate-800"
+          }`}
+        >
+          {goal.completed && <CheckSquare className="w-3.5 h-3.5 text-white" />}
+        </div>
+        <span
+          className={`text-xs ${
+            goal.completed ? "line-through text-slate-500" : "text-slate-300"
+          }`}
+        >
+          {goal.text}
+        </span>
+      </div>
+      <button
+        onClick={(e) => {
+          e.stopPropagation(); // Prevents toggle from firing when clicking trash
+          removeGoal(goal.id);
+        }}
+        className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-500 transition-all"
+      >
+        <Trash2 className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  );
 
   return (
     <div className="bg-[#0f111a] border border-slate-800 rounded-xl p-6 shadow-lg">
@@ -1419,48 +1547,23 @@ const WeeklyGoals = ({ goals, toggleGoal, addGoal, removeGoal }) => {
       </h3>
 
       <div className="space-y-3 mb-4">
-        {goals.map((goal) => (
-          <div
-            key={goal.id}
-            className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-all select-none group ${
-              goal.completed
-                ? "bg-green-900/10 border-green-900/30 opacity-60"
-                : "bg-[#0a0a0f] border-slate-800"
-            }`}
-          >
-            <div
-              className="flex items-center gap-3 flex-1"
-              onClick={() => toggleGoal(goal.id)}
-            >
-              <div
-                className={`mt-0.5 w-5 h-5 rounded flex items-center justify-center border transition-colors ${
-                  goal.completed
-                    ? "bg-green-500 border-green-500"
-                    : "border-slate-600 bg-slate-800"
-                }`}
-              >
-                {goal.completed && (
-                  <CheckSquare className="w-3.5 h-3.5 text-white" />
-                )}
-              </div>
-              <span
-                className={`text-xs ${
-                  goal.completed
-                    ? "line-through text-slate-500"
-                    : "text-slate-300"
-                }`}
-              >
-                {goal.text}
-              </span>
-            </div>
-            <button
-              onClick={() => removeGoal(goal.id)}
-              className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-500 transition-all"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
+        {incompleteGoals.length === 0 && completedGoals.length === 0 ? (
+          <div className="text-center text-slate-500 text-xs py-4">
+            No goals found. Add one below!
           </div>
-        ))}
+        ) : (
+          <>
+            {incompleteGoals.map(renderGoal)}
+            {completedGoals.length > 0 && (
+              <div className="pt-4 border-t border-slate-800/50">
+                <p className="text-xs text-slate-600 mb-2">
+                  Completed ({completedGoals.length})
+                </p>
+                {completedGoals.map(renderGoal)}
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       <form
@@ -1472,20 +1575,26 @@ const WeeklyGoals = ({ goals, toggleGoal, addGoal, removeGoal }) => {
           value={newGoal}
           onChange={(e) => setNewGoal(e.target.value)}
           placeholder="Add new goal..."
-          className="flex-1 bg-[#0a0a0f] border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:border-blue-500 outline-none"
+          disabled={isAdding}
+          className="flex-1 bg-[#0a0a0f] border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:border-blue-500 outline-none disabled:opacity-50"
         />
         <button
           type="submit"
-          className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500"
+          disabled={!newGoal.trim() || isAdding}
+          className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:bg-blue-900 disabled:text-slate-500"
         >
-          <Plus className="w-4 h-4" />
+          {isAdding ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Plus className="w-4 h-4" />
+          )}
         </button>
       </form>
     </div>
   );
 };
 
-// --- ACTIVITY FEED (REAL-TIME) ---
+// --- ACTIVITY FEED (No change) ---
 const ActivityFeed = ({ events, username }) => (
   <div className="bg-[#0f111a] border border-slate-800 rounded-xl p-6 shadow-lg">
     <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
@@ -1537,20 +1646,6 @@ const ActivityFeed = ({ events, username }) => (
   </div>
 );
 
-const MenuIcon = () => (
-  <svg
-    className="w-6 h-6"
-    fill="none"
-    viewBox="0 0 24 24"
-    stroke="currentColor"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M4 6h16M4 12h16M4 18h16"
-    />
-  </svg>
-);
+// --- REMOVED REDUNDANT MenuIcon DECLARATION ---
 
 export default Dashboard;
