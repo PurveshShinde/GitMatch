@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
+  // ... (Lucide Icons remain the same) ...
   Github,
   Code2,
   Users,
@@ -16,9 +17,77 @@ import {
   Activity,
   GitMerge,
   Layers,
+  LogOut,
+  LayoutDashboard,
+  Loader2,
 } from "lucide-react";
 
-// --- 1. Advanced Ripple Button Component ---
+// --- UPDATED: IMPORT CENTRALIZED FIREBASE INSTANCES ---
+import { auth, db } from "../firebase"; // Assuming src/firebase.js is one directory up
+import { onAuthStateChanged, signOut } from "firebase/auth";
+import { getDoc, doc } from "firebase/firestore";
+// --- END IMPORT ---
+
+// Define appId for profile fetching (assuming it's still needed outside the firebase module)
+const appId =
+  typeof __app_id !== "undefined" ? __app_id : "gitmatch-production";
+
+// --- 1. CUSTOM AUTH HOOK ---
+const useAuthAndProfile = () => {
+  const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // If auth/db are null, the centralization failed or the config wasn't injected.
+    if (!auth || !db) {
+      console.warn(
+        "Auth/DB not available, showing guest state. (Centralized check)"
+      );
+      setLoading(false);
+      return;
+    }
+
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setUser(currentUser);
+
+      if (currentUser) {
+        // Fetch Profile Data
+        try {
+          const docRef = doc(
+            db,
+            "artifacts",
+            appId,
+            "users",
+            currentUser.uid,
+            "profile",
+            "onboarding"
+          );
+          const docSnap = await getDoc(docRef);
+
+          if (docSnap.exists()) {
+            setProfile(docSnap.data());
+          } else {
+            setProfile(null);
+          }
+        } catch (e) {
+          console.error("Error fetching home profile:", e);
+          setProfile(null);
+        }
+      } else {
+        setProfile(null);
+      }
+
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  return { user, profile, loading };
+};
+
+// --- 2. Advanced Ripple Button Component (No change) ---
 const RippleButton = ({
   children,
   to,
@@ -28,28 +97,23 @@ const RippleButton = ({
   variant = "primary",
 }) => {
   const [ripples, setRipples] = useState([]);
-
   const createRipple = (e) => {
     const button = e.currentTarget;
     const rect = button.getBoundingClientRect();
     const size = Math.max(rect.width, rect.height);
     const x = e.clientX - rect.left - size / 2;
     const y = e.clientY - rect.top - size / 2;
-
     const newRipple = { x, y, size, id: Date.now() };
     setRipples((prev) => [...prev, newRipple]);
   };
-
   useEffect(() => {
     if (ripples.length > 0) {
       const timer = setTimeout(() => setRipples((prev) => prev.slice(1)), 600);
       return () => clearTimeout(timer);
     }
   }, [ripples]);
-
   const baseClasses =
     "relative overflow-hidden transition-all transform active:scale-95 font-bold rounded-lg flex items-center justify-center gap-2 group font-mono text-sm tracking-wide border z-10";
-
   const variants = {
     primary:
       "bg-blue-600 hover:bg-blue-500 text-white border-blue-500/50 shadow-[0_0_20px_rgba(37,99,235,0.3)] hover:shadow-[0_0_30px_rgba(37,99,235,0.5)]",
@@ -59,11 +123,9 @@ const RippleButton = ({
       "bg-transparent hover:bg-slate-800/50 text-slate-300 hover:text-white border-slate-700 hover:border-blue-500/50",
     nav: "bg-transparent hover:bg-slate-800 text-slate-400 hover:text-white border-transparent hover:border-slate-700",
   };
-
   const combinedClasses = `${baseClasses} ${variants[variant]} ${
     className || ""
   }`;
-
   const content = (
     <>
       <span className="relative z-10 flex items-center gap-2">{children}</span>
@@ -81,7 +143,6 @@ const RippleButton = ({
       ))}
     </>
   );
-
   if (to)
     return (
       <Link
@@ -106,7 +167,7 @@ const RippleButton = ({
   );
 };
 
-// --- 2. Hero Terminal Animation ---
+// --- 3. Hero Terminal Animation (No change) ---
 const TerminalHero = () => {
   const [lines, setLines] = useState([
     { text: "> git init git-match", color: "text-yellow-400" },
@@ -141,7 +202,6 @@ const TerminalHero = () => {
         delay: 4000,
       },
     ];
-
     let timeouts = [];
     sequence.forEach(({ text, color, delay }) => {
       timeouts.push(
@@ -150,15 +210,12 @@ const TerminalHero = () => {
         }, delay)
       );
     });
-
     return () => timeouts.forEach(clearTimeout);
   }, []);
 
   return (
     <div className="w-full max-w-lg mx-auto bg-[#0d1117] rounded-lg border border-slate-800 shadow-2xl overflow-hidden font-mono text-xs sm:text-sm transform transition-transform hover:scale-[1.02] duration-500 group relative">
-      {/* Glow Effect behind terminal */}
       <div className="absolute -inset-1 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg blur opacity-20 group-hover:opacity-40 transition duration-1000"></div>
-
       <div className="relative bg-[#0d1117] rounded-lg">
         <div className="flex items-center px-4 py-3 bg-[#161b22] border-b border-slate-800 gap-2">
           <div className="flex gap-2">
@@ -187,7 +244,7 @@ const TerminalHero = () => {
   );
 };
 
-// --- 3. Feature Card Component ---
+// --- 4. Feature Card Component (No change) ---
 const TechCard = ({ icon: Icon, title, desc, delay }) => (
   <div
     className="p-6 rounded-xl bg-[#0d1117]/50 border border-slate-800 hover:border-blue-500/50 transition-all duration-300 group hover:-translate-y-1 backdrop-blur-sm"
@@ -207,6 +264,17 @@ const HomePage = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
 
+  // *** USE AUTH HOOK ***
+  const { user, profile, loading } = useAuthAndProfile();
+
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    if (auth) await signOut(auth);
+    setMobileMenuOpen(false);
+  };
+
+  // --- UI EFFECTS (Scroll/Mouse) ---
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
     const handleMouseMove = (e) => {
@@ -224,11 +292,31 @@ const HomePage = () => {
     };
   }, []);
 
+  // Helper to get display name/avatar
+  const displayName =
+    profile?.githubUsername ||
+    user?.email?.split("@")[0] ||
+    user?.displayName ||
+    "Developer";
+
+  const avatarUrl = profile?.githubUsername
+    ? `https://github.com/${profile.githubUsername}.png`
+    : user?.photoURL || "https://github.com/ghost.png";
+
+  // Added Loading State for better UX
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#050508] text-white">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-500 mb-4" />
+        <p className="font-mono">LOADING_SESSION...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#050508] text-slate-200 font-sans selection:bg-blue-500/30 overflow-hidden relative">
       {/* --- Advanced Background Layer --- */}
       <div className="fixed inset-0 pointer-events-none z-0">
-        {/* Moving Grid */}
         <div
           className="absolute inset-0 opacity-[0.07]"
           style={{
@@ -239,9 +327,7 @@ const HomePage = () => {
             }px)`,
           }}
         />
-        {/* Radial Gradient Vignette */}
         <div className="absolute inset-0 bg-gradient-to-b from-[#050508] via-transparent to-[#050508]" />
-        {/* Ambient Glows */}
         <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-blue-600/5 rounded-full blur-[100px] animate-pulse" />
         <div className="absolute bottom-[-20%] left-[-10%] w-[500px] h-[500px] bg-purple-600/5 rounded-full blur-[100px]" />
       </div>
@@ -282,22 +368,56 @@ const HomePage = () => {
               ))}
 
               <div className="flex items-center gap-3 ml-4 border-l border-slate-800 pl-6">
-                <RippleButton
-                  to="/Auth"
-                  state={{ mode: "signin" }}
-                  variant="nav"
-                  className="text-xs"
-                >
-                  <Github className="w-3.5 h-3.5" /> Login
-                </RippleButton>
-                <RippleButton
-                  to="/Auth"
-                  state={{ mode: "signup" }}
-                  variant="primary"
-                  className="text-xs px-5 py-2"
-                >
-                  Get Started
-                </RippleButton>
+                {user ? (
+                  // AUTHENTICATED STATE (DESKTOP)
+                  <div className="flex items-center gap-4">
+                    <Link
+                      to="/dashboard"
+                      className="flex items-center gap-2 group"
+                    >
+                      <img
+                        src={avatarUrl}
+                        alt="Profile"
+                        className="w-8 h-8 rounded-full border border-slate-700 group-hover:border-blue-500 transition-colors object-cover"
+                      />
+                      <div className="text-right hidden lg:block">
+                        <div className="text-xs font-bold text-white group-hover:text-blue-400 transition-colors">
+                          {displayName}
+                        </div>
+                        <div className="text-xs text-slate-500 font-mono">
+                          // LOGGED_IN
+                        </div>
+                      </div>
+                    </Link>
+                    <RippleButton
+                      to="/dashboard"
+                      variant="primary"
+                      className="text-xs px-4 py-2"
+                    >
+                      <LayoutDashboard className="w-3.5 h-3.5" /> Dashboard
+                    </RippleButton>
+                  </div>
+                ) : (
+                  // GUEST STATE (DESKTOP)
+                  <>
+                    <RippleButton
+                      to="/Auth"
+                      state={{ mode: "signin" }}
+                      variant="nav"
+                      className="text-xs"
+                    >
+                      <Github className="w-3.5 h-3.5" /> Login
+                    </RippleButton>
+                    <RippleButton
+                      to="/Auth"
+                      state={{ mode: "signup" }}
+                      variant="primary"
+                      className="text-xs px-5 py-2"
+                    >
+                      Get Started
+                    </RippleButton>
+                  </>
+                )}
               </div>
             </div>
 
@@ -321,22 +441,63 @@ const HomePage = () => {
         {mobileMenuOpen && (
           <div className="md:hidden bg-[#0a0a0f] border-b border-slate-800 absolute w-full shadow-2xl animate-slide-down">
             <div className="p-4 space-y-3">
-              <RippleButton
-                to="/Auth"
-                state={{ mode: "signin" }}
-                variant="secondary"
-                className="w-full py-3 justify-center"
-              >
-                <Github className="w-4 h-4" /> Sign In
-              </RippleButton>
-              <RippleButton
-                to="/Auth"
-                state={{ mode: "signup" }}
-                variant="primary"
-                className="w-full py-3 justify-center"
-              >
-                Create Account
-              </RippleButton>
+              {user ? (
+                // AUTHENTICATED STATE (MOBILE)
+                <>
+                  <div className="flex items-center gap-3 pb-4 border-b border-slate-800/50">
+                    <img
+                      src={avatarUrl}
+                      alt="Profile"
+                      className="w-10 h-10 rounded-full border border-slate-700 object-cover"
+                    />
+                    <div>
+                      <div className="text-sm font-bold text-white">
+                        {displayName}
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        {user.email || "Logged In"}
+                      </div>
+                    </div>
+                  </div>
+                  <RippleButton
+                    to="/dashboard"
+                    variant="primary"
+                    className="w-full py-3 justify-center"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    <LayoutDashboard className="w-4 h-4" /> Go to Dashboard
+                  </RippleButton>
+                  <RippleButton
+                    onClick={handleLogout}
+                    variant="secondary"
+                    className="w-full py-3 justify-center text-red-400 border-red-900/30 hover:border-red-500/50"
+                  >
+                    <LogOut className="w-4 h-4" /> Sign Out
+                  </RippleButton>
+                </>
+              ) : (
+                // GUEST STATE (MOBILE)
+                <>
+                  <RippleButton
+                    to="/Auth"
+                    state={{ mode: "signin" }}
+                    variant="secondary"
+                    className="w-full py-3 justify-center"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    <Github className="w-4 h-4" /> Sign In
+                  </RippleButton>
+                  <RippleButton
+                    to="/Auth"
+                    state={{ mode: "signup" }}
+                    variant="primary"
+                    className="w-full py-3 justify-center"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Create Account
+                  </RippleButton>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -347,7 +508,6 @@ const HomePage = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-16 items-center">
             <div className="order-2 lg:order-1">
-              {/* Badge */}
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded border border-blue-500/20 bg-blue-500/5 text-blue-400 text-[10px] font-mono uppercase tracking-widest mb-6">
                 <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
                 System Status: Online
@@ -371,14 +531,25 @@ const HomePage = () => {
               </p>
 
               <div className="flex flex-wrap gap-4">
-                <RippleButton
-                  to="/Auth"
-                  state={{ mode: "signup" }}
-                  variant="primary"
-                  className="px-8 py-4 text-base"
-                >
-                  Initialize_Profile
-                </RippleButton>
+                {user ? (
+                  <RippleButton
+                    to="/dashboard"
+                    variant="primary"
+                    className="px-8 py-4 text-base"
+                  >
+                    Launch_Dashboard <ArrowRight className="w-4 h-4 ml-2" />
+                  </RippleButton>
+                ) : (
+                  <RippleButton
+                    to="/Auth"
+                    state={{ mode: "signup" }}
+                    variant="primary"
+                    className="px-8 py-4 text-base"
+                  >
+                    Initialize_Profile
+                  </RippleButton>
+                )}
+
                 <RippleButton
                   to="#features"
                   variant="outline"
@@ -389,7 +560,6 @@ const HomePage = () => {
                 </RippleButton>
               </div>
 
-              {/* Social Proof */}
               <div className="mt-10 pt-8 border-t border-slate-800/50 flex gap-8 text-slate-500 font-mono text-xs">
                 <div className="flex items-center gap-2">
                   <Cpu className="w-4 h-4 text-slate-400" />
@@ -402,10 +572,8 @@ const HomePage = () => {
               </div>
             </div>
 
-            {/* Hero Graphic */}
             <div className="order-1 lg:order-2 relative">
               <TerminalHero />
-              {/* Decorative Floating Elements */}
               <div className="absolute -top-12 -right-12 w-24 h-24 bg-blue-500/10 rounded-full blur-2xl animate-pulse"></div>
             </div>
           </div>
@@ -428,10 +596,8 @@ const HomePage = () => {
           </div>
 
           <div className="relative">
-            {/* The "Git Line" */}
             <div className="absolute left-[28px] md:left-1/2 top-0 bottom-0 w-1 bg-slate-800 md:-translate-x-1/2"></div>
 
-            {/* Steps */}
             {[
               {
                 icon: Github,
@@ -455,7 +621,6 @@ const HomePage = () => {
                   idx % 2 === 0 ? "md:flex-row-reverse" : ""
                 }`}
               >
-                {/* Text Content */}
                 <div className="flex-1 md:text-right pt-2 pl-16 md:pl-0 md:pr-0">
                   <div
                     className={`${
@@ -471,14 +636,12 @@ const HomePage = () => {
                   </div>
                 </div>
 
-                {/* Center Node */}
                 <div className="absolute left-0 md:relative md:left-auto w-14 h-14 flex-shrink-0 z-10">
                   <div className="w-14 h-14 rounded-full bg-[#0d1117] border-4 border-slate-800 flex items-center justify-center relative group hover:border-blue-500 transition-colors">
                     <step.icon className="w-6 h-6 text-slate-300 group-hover:text-blue-400" />
                   </div>
                 </div>
 
-                {/* Empty Spacer for Grid */}
                 <div className="flex-1 hidden md:block"></div>
               </div>
             ))}
@@ -550,23 +713,35 @@ const HomePage = () => {
             Join the network of developers building the future.
           </p>
           <div className="flex flex-col sm:flex-row justify-center gap-4">
-            <RippleButton
-              to="/Auth"
-              state={{ mode: "signup" }}
-              variant="primary"
-              className="px-12 py-4 text-lg"
-            >
-              <Github className="w-5 h-5" /> Authorize_GitHub
-            </RippleButton>
+            {user ? (
+              <RippleButton
+                to="/dashboard"
+                variant="primary"
+                className="px-12 py-4 text-lg"
+              >
+                Go to Dashboard
+              </RippleButton>
+            ) : (
+              <>
+                <RippleButton
+                  to="/Auth"
+                  state={{ mode: "signup" }}
+                  variant="primary"
+                  className="px-12 py-4 text-lg"
+                >
+                  <Github className="w-5 h-5" /> Authorize_GitHub
+                </RippleButton>
 
-            <RippleButton
-              to="/Auth"
-              state={{ mode: "signin" }}
-              variant="secondary"
-              className="px-12 py-4 text-lg"
-            >
-              Log_In
-            </RippleButton>
+                <RippleButton
+                  to="/Auth"
+                  state={{ mode: "signin" }}
+                  variant="secondary"
+                  className="px-12 py-4 text-lg"
+                >
+                  Log_In
+                </RippleButton>
+              </>
+            )}
           </div>
         </div>
       </section>
@@ -630,6 +805,8 @@ const HomePage = () => {
         .animate-ripple { animation: ripple 0.6s linear; }
         .animate-fade-in { animation: fadeIn 0.5s ease-out forwards; opacity: 0; }
         @keyframes fadeIn { to { opacity: 1; } }
+        @keyframes slide-down { from { transform: translateY(-10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .animate-slide-down { animation: slide-down 0.2s ease-out forwards; }
       `}</style>
     </div>
   );
