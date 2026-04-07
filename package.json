@@ -1,6 +1,28 @@
 {
   "dependencies": {
     "@tailwindcss/vite": "^4.1.13",
+    "express": "^5.2.1",
+    "nodemon": "^3.1.14",
     "tailwindcss": "^4.1.13"
-  }
+  },
+  "name": "major-project-btech-",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "nodemon api/index.js",
+    "start": "node api/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PurveshShinde/major-project-Btech-.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/PurveshShinde/major-project-Btech-/issues"
+  },
+  "homepage": "https://github.com/PurveshShinde/major-project-Btech-#readme"
 }
