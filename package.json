@@ -1,7 +1,9 @@
 {
   "dependencies": {
     "@tailwindcss/vite": "^4.1.13",
+    "dotenv": "^17.4.1",
     "express": "^5.2.1",
+    "mongoose": "^9.4.1",
     "nodemon": "^3.1.14",
     "tailwindcss": "^4.1.13"
   },
