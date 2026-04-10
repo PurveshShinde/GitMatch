@@ -5,14 +5,16 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Settings from "./pages/Settings";
 
+
 function App() {
   return (
     <Router>
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/Auth" element={<Auth />} />
+        <Route path="/auth" element={<Auth />} />
         <Route path="/Dashboard" element={<Dashboard />} />
         <Route path="/Settings" element={<Settings />} />
+       
       </Routes>
     </Router>
   );

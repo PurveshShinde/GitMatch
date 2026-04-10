@@ -401,7 +401,7 @@ const HomePage = () => {
                   // GUEST STATE (DESKTOP)
                   <>
                     <RippleButton
-                      to="/Auth"
+                      to="/auth"
                       state={{ mode: "signin" }}
                       variant="nav"
                       className="text-xs"
@@ -409,7 +409,7 @@ const HomePage = () => {
                       <Github className="w-3.5 h-3.5" /> Login
                     </RippleButton>
                     <RippleButton
-                      to="/Auth"
+                      to="/auth"
                       state={{ mode: "signup" }}
                       variant="primary"
                       className="text-xs px-5 py-2"
