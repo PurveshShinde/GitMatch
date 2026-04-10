@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
-  Github,
   Mail,
   Lock,
   User,
@@ -24,66 +23,7 @@ import {
   Layers,
 } from "lucide-react";
 
-import {
-  getAuth,
-  onAuthStateChanged,
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signInWithCustomToken,
-} from "firebase/auth";
-import {
-  getFirestore,
-  doc,
-  getDoc,
-  setDoc,
-  serverTimestamp,
-} from "firebase/firestore";
-
-// --- START: Local Firebase Setup for Vite/React ---
-import firebaseApp from "../firebase";
-
-// Corrected local initialization (resolves import errors)
-const app = firebaseApp;
-const db = getFirestore(app);
-const auth = getAuth(app);
-
-// Mocking Canvas Globals with Local/Default Values
-const appId = "gitmatch-production"; // Use your actual production ID
-const initialAuthToken = null; // Assuming local Vite environment doesn't provide this
-// --- END: Local Firebase Setup for Vite/React ---
-
-// --- 3. CUSTOM AUTH HOOK ---
-// This hook waits for a user to be genuinely authenticated.
-const useAuth = () => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!auth) return;
-
-    // Attempt sign-in with Canvas token only if it exists
-    const attemptSignIn = async () => {
-      if (initialAuthToken) {
-        try {
-          await signInWithCustomToken(auth, initialAuthToken);
-        } catch (e) {
-          console.error("Custom token sign-in failed:", e);
-        }
-      }
-    };
-    attemptSignIn();
-
-    // Listen for real authentication status changes
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  return { user, loading };
-};
+import { SignUpForm, SignInForm, AuthOverlay } from "../components/AuthForms";
 
 // --- 4. ONBOARDING DATA & OPTIONS ---
 const initialData = {
@@ -185,7 +125,7 @@ const options = {
   ],
 };
 
-// --- 5. REUSABLE ONBOARDING COMPONENTS ---
+// --- REUSABLE ONBOARDING COMPONENTS ---
 
 const SelectCard = ({ value, icon: Icon, onClick, isSelected }) => (
   <button
@@ -246,16 +186,16 @@ const ChipSelect = ({ label, currentSelection, allOptions, max, onToggle }) => {
   );
 };
 
-// --- 6. AUTH PAGE (Unified Component) ---
+// --- 4. AUTH PAGE (Unified Component) ---
 const AuthPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, loading: authLoading } = useAuth();
 
   // --- AUTH/SLIDING STATE ---
   const [isSignUp, setIsSignUp] = useState(false);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [isAuthAttempting, setIsAuthAttempting] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   // --- ONBOARDING STATE ---
   const [step, setStep] = useState(1);
@@ -293,56 +233,7 @@ const AuthPage = () => {
     return () => window.removeEventListener("mousemove", handleMouseMove);
   }, []);
 
-  // --- EFFECT 3: Check Onboarding Status on Successful Sign In ---
-  useEffect(() => {
-    // If auth is still loading, or if no user is signed in, skip check.
-    if (authLoading || !user || !db) {
-      if (!authLoading && !user) {
-        // If loading is done and we have no user, show the forms.
-        setOnboardingStatus((prev) => ({ ...prev, isLoading: false }));
-      }
-      return;
-    }
-
-    // User is signed in (user is not null) -> Check onboarding status
-    const checkStatus = async () => {
-      setIsAuthAttempting(false);
-
-      try {
-        const docRef = doc(
-          db,
-          "artifacts",
-          appId,
-          "users",
-          user.uid,
-          "profile",
-          "onboarding"
-        );
-        const docSnap = await getDoc(docRef);
-
-        if (docSnap.exists() && docSnap.data().completedOnboarding) {
-          setOnboardingStatus({ isCompleted: true, isLoading: false });
-          // If completed, redirect immediately
-          goToDashboard();
-        } else {
-          // Profile incomplete, start onboarding flow
-          setOnboardingStatus({ isCompleted: false, isLoading: false });
-          setFormData((prev) => ({
-            ...prev,
-            githubUsername: user.uid.substring(0, 10),
-          }));
-        }
-      } catch (e) {
-        console.error("Error checking onboarding status:", e);
-        setError("Could not load profile. Please try again.");
-        setOnboardingStatus({ isCompleted: false, isLoading: false });
-      }
-    };
-
-    checkStatus();
-  }, [user, authLoading]);
-
-  // --- AUTH FORM SUBMISSION HANDLER (Real Firebase Auth) ---
+  // --- AUTH FORM SUBMISSION HANDLER ---
   const handleAuthSubmit = async (e, isSignupForm) => {
     e.preventDefault();
     setError(null);
@@ -351,24 +242,16 @@ const AuthPage = () => {
     const email = e.target.querySelector("input[type=email]").value;
     const password = e.target.querySelector("input[type=password]").value;
 
-    try {
-      if (isSignupForm) {
-        await createUserWithEmailAndPassword(auth, email, password);
-      } else {
-        await signInWithEmailAndPassword(auth, email, password);
-      }
-      // Success: The user object updates, triggering the check in useEffect 3.
-    } catch (err) {
-      console.error(err);
-      // Clean up the Firebase error message for display
-      setError(
-        err.message
-          .replace("Firebase: ", "")
-          .replace("Error (", "")
-          .replace(").", "")
-      );
+    // Placeholder: Connect to your backend API here
+    console.log(isSignupForm ? "SIGNUP" : "SIGNIN", { email, password });
+
+    // Simulate auth delay
+    setTimeout(() => {
       setIsAuthAttempting(false);
-    }
+      setIsAuthenticated(true);
+      setOnboardingStatus({ isCompleted: false, isLoading: false });
+      // TODO: Handle actual authentication on your backend
+    }, 500);
   };
 
   // --- ONBOARDING HANDLERS ---
@@ -422,10 +305,10 @@ const AuthPage = () => {
     });
   };
 
-  // --- SUBMISSION HANDLER (Saves to Firestore and Redirects) ---
+  // --- SUBMISSION HANDLER (Saves locally and Redirects) ---
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!user || !db || isSubmitting) return;
+    if (isSubmitting) return;
 
     setIsSubmitting(true);
     setError(null);
@@ -433,28 +316,21 @@ const AuthPage = () => {
     const dataToSave = {
       ...formData,
       completedOnboarding: true,
-      createdAt: serverTimestamp(),
+      createdAt: new Date().toISOString(),
     };
 
     try {
-      const docRef = doc(
-        db,
-        "artifacts",
-        appId,
-        "users",
-        user.uid,
-        "profile",
-        "onboarding"
-      );
-      await setDoc(docRef, dataToSave, { merge: true });
+      // TODO: Send to your backend API
+      console.log("Saving onboarding data:", dataToSave);
+
+      // Simulate save delay
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
       setOnboardingStatus({ isCompleted: true, isLoading: false });
-
-      // SUCCESS: Perform final redirection
       goToDashboard();
     } catch (e) {
-      console.error("Error writing document:", e);
-      setError("Failed to save profile. Please check console for details.");
+      console.error("Error saving profile:", e);
+      setError("Failed to save profile. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -789,19 +665,11 @@ const AuthPage = () => {
 
   // --- MAIN RENDER LOGIC ---
 
-  // 1. Initial Loading State (Firebase SDK is loading/Checking initial auth)
-  if (authLoading || (user && onboardingStatus.isLoading)) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[#0a0a0f] text-white">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-500 mb-4" />
-        <p className="font-mono">
-          {authLoading
-            ? "ESTABLISHING_AUTH_SESSION..."
-            : "CHECKING_PROFILE_STATUS..."}
-        </p>
-      </div>
-    );
-  }
+  // 1. Initialize loading state
+  useEffect(() => {
+    // Skip Firebase check and go straight to showing auth forms
+    setOnboardingStatus({ isCompleted: false, isLoading: false });
+  }, []);
 
   // 2. Onboarding Complete State (Ready to redirect)
   if (onboardingStatus.isCompleted) {
@@ -812,13 +680,12 @@ const AuthPage = () => {
         <p className="text-slate-400 mt-2">
           Profile saved. Redirecting to /dashboard...
         </p>
-        <p className="text-xs text-slate-600 mt-8">User ID: {user?.uid}</p>
       </div>
     );
   }
 
-  // 3. ONBOARDING FLOW UI (If User is logged in, but profile is not completed)
-  if (user && !onboardingStatus.isCompleted) {
+  // 3. ONBOARDING FLOW UI (After successful auth)
+  if (isAuthenticated && !onboardingStatus.isCompleted) {
     return (
       <div className="min-h-screen bg-[#050508] text-slate-200 font-sans p-4 md:p-8 flex justify-center items-start pt-8">
         <div className="w-full max-w-4xl bg-[#0f111a] rounded-xl border border-slate-800 shadow-2xl p-6 md:p-10 relative">
@@ -938,10 +805,10 @@ const AuthPage = () => {
       <div
         className={`
           relative bg-[#0f111a] rounded-2xl shadow-[0_0_50px_-12px_rgba(0,0,0,0.7)]
-          w-full max-w-[1000px] 
-          min-h-fit md:min-h-[600px] 
-          flex flex-col md:block 
-          overflow-hidden 
+          w-full max-w-[1000px]
+          min-h-fit md:min-h-[600px]
+          flex flex-col md:block
+          overflow-hidden
           border border-slate-800/50 z-10 backdrop-blur-sm
         `}
       >
@@ -977,320 +844,24 @@ const AuthPage = () => {
           </div>
         )}
 
-        {/* --- Sign Up Form Container --- */}
-        <div
-          className={`
-            transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)]
-            w-full md:w-1/2 
-            
-            /* Mobile Styles: Show/Hide based on toggle */
-            ${isSignUp ? "block" : "hidden"} md:block
-            relative p-8 md:p-0
-            
-            /* Desktop Styles: Absolute positioning for sliding */
-            md:absolute md:top-0 md:h-full
-            ${
-              isSignUp
-                ? "md:left-full md:-translate-x-full md:opacity-100 md:z-50"
-                : "md:left-0 md:opacity-0 md:z-0"
-            }
-          `}
-        >
-          <form
-            onSubmit={(e) => handleAuthSubmit(e, true)}
-            className="h-full flex flex-col items-center justify-center text-center bg-[#0f111a] p-0 md:px-12"
-          >
-            <div className="hidden md:flex items-center justify-center w-12 h-12 bg-cyan-500/10 rounded-xl mb-6 border border-cyan-500/20 shadow-[0_0_15px_rgba(6,182,212,0.2)]">
-              <Terminal size={24} className="text-cyan-400" />
-            </div>
+        {/* Sign Up Form */}
+        <SignUpForm
+          isAuthAttempting={isAuthAttempting}
+          error={error}
+          onSubmit={(e) => handleAuthSubmit(e, true)}
+          onToggle={isSignUp}
+        />
 
-            <h1 className="text-2xl md:text-3xl font-bold text-white mb-2 tracking-tight">
-              Initialize_User
-            </h1>
-            <span className="text-slate-500 text-sm mb-8 font-mono">
-              System.create(new_account)
-            </span>
+        {/* Sign In Form */}
+        <SignInForm
+          isAuthAttempting={isAuthAttempting}
+          error={error}
+          onSubmit={(e) => handleAuthSubmit(e, false)}
+          onToggle={isSignUp}
+        />
 
-            <div className="flex gap-4 mb-8">
-              {[<Github size={20} />, <Code2 size={20} />].map((icon, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  className="group relative p-3 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:border-cyan-500/50 transition-all duration-300 overflow-hidden"
-                >
-                  <div className="absolute inset-0 bg-cyan-500/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
-                  <span className="relative z-10">{icon}</span>
-                </button>
-              ))}
-            </div>
-
-            <div className="w-full space-y-5">
-              {/* Input: Name */}
-              <div className="group relative">
-                <User className="absolute left-3 top-4 text-slate-500 w-5 h-5 group-focus-within:text-cyan-400 transition-colors" />
-                <input
-                  required
-                  type="text"
-                  id="signup-name"
-                  className="peer w-full bg-slate-900/50 border border-slate-700 text-white px-10 py-4 rounded-lg outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all placeholder-transparent"
-                  placeholder="Name"
-                />
-                <label
-                  htmlFor="signup-name"
-                  className="absolute left-10 -top-2.5 bg-[#0f111a] px-2 text-xs text-slate-500 peer-placeholder-shown:text-base peer-placeholder-shown:text-slate-500 peer-placeholder-shown:top-[14px] peer-focus:-top-2.5 peer-focus:text-xs peer-focus:text-cyan-400 transition-all cursor-text font-mono"
-                >
-                  username
-                </label>
-              </div>
-
-              {/* Input: Email */}
-              <div className="group relative">
-                <Mail className="absolute left-3 top-4 text-slate-500 w-5 h-5 group-focus-within:text-cyan-400 transition-colors" />
-                <input
-                  required
-                  type="email"
-                  id="signup-email"
-                  className="peer w-full bg-slate-900/50 border border-slate-700 text-white px-10 py-4 rounded-lg outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all placeholder-transparent"
-                  placeholder="Email"
-                />
-                <label
-                  htmlFor="signup-email"
-                  className="absolute left-10 -top-2.5 bg-[#0f111a] px-2 text-xs text-slate-500 peer-placeholder-shown:text-base peer-placeholder-shown:text-slate-500 peer-placeholder-shown:top-[14px] peer-focus:-top-2.5 peer-focus:text-xs peer-focus:text-cyan-400 transition-all cursor-text font-mono"
-                >
-                  email
-                </label>
-              </div>
-
-              {/* Input: Password */}
-              <div className="group relative">
-                <Lock className="absolute left-3 top-4 text-slate-500 w-5 h-5 group-focus-within:text-cyan-400 transition-colors" />
-                <input
-                  required
-                  type="password"
-                  id="signup-pass"
-                  className="peer w-full bg-slate-900/50 border border-slate-700 text-white px-10 py-4 rounded-lg outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all placeholder-transparent"
-                  placeholder="Password"
-                />
-                <label
-                  htmlFor="signup-pass"
-                  className="absolute left-10 -top-2.5 bg-[#0f111a] px-2 text-xs text-slate-500 peer-placeholder-shown:text-base peer-placeholder-shown:text-slate-500 peer-placeholder-shown:top-[14px] peer-focus:-top-2.5 peer-focus:text-xs peer-focus:text-cyan-400 transition-all cursor-text font-mono"
-                >
-                  password
-                </label>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={isAuthAttempting}
-              className="mt-8 w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 px-12 rounded-lg transition-all transform hover:-translate-y-0.5 shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:shadow-[0_0_30px_rgba(6,182,212,0.5)] flex items-center justify-center gap-2 group"
-            >
-              {isAuthAttempting ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <Zap
-                  size={18}
-                  className="group-hover:text-yellow-300 transition-colors"
-                />
-              )}
-              <span>
-                {isAuthAttempting ? "AUTHORIZING..." : "EXECUTE_SIGNUP"}
-              </span>
-            </button>
-          </form>
-        </div>
-
-        {/* --- Sign In Form Container --- */}
-        <div
-          className={`
-            transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)]
-            w-full md:w-1/2 
-            
-            /* Mobile Styles: Show/Hide based on toggle */
-            ${!isSignUp ? "block" : "hidden"} md:block
-            relative p-8 md:p-0
-            
-            /* Desktop Styles: Absolute positioning for sliding */
-            md:absolute md:top-0 md:h-full
-            ${
-              isSignUp
-                ? "md:translate-x-full md:opacity-0"
-                : "md:left-0 md:opacity-100 md:z-50"
-            }
-          `}
-        >
-          <form
-            onSubmit={(e) => handleAuthSubmit(e, false)}
-            className="h-full flex flex-col items-center justify-center text-center bg-[#0f111a] p-0 md:px-12"
-          >
-            <div className="hidden md:flex items-center justify-center w-12 h-12 bg-violet-500/10 rounded-xl mb-6 border border-violet-500/20 shadow-[0_0_15px_rgba(139,92,246,0.2)]">
-              <Code2 size={24} className="text-violet-400" />
-            </div>
-
-            <h1 className="text-2xl md:text-3xl font-bold text-white mb-2 tracking-tight">
-              Welcome Back
-            </h1>
-            <span className="text-slate-500 text-sm mb-8 font-mono">
-              Authenticate to continue
-            </span>
-
-            <div className="flex gap-4 mb-8">
-              {[<Github size={20} />, <Code2 size={20} />].map((icon, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  className="group relative p-3 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:border-violet-500/50 transition-all duration-300 overflow-hidden"
-                >
-                  <div className="absolute inset-0 bg-violet-500/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
-                  <span className="relative z-10">{icon}</span>
-                </button>
-              ))}
-            </div>
-
-            <div className="w-full space-y-5">
-              {/* Input: Email */}
-              <div className="group relative">
-                <Mail className="absolute left-3 top-4 text-slate-500 w-5 h-5 group-focus-within:text-violet-400 transition-colors" />
-                <input
-                  required
-                  type="email"
-                  id="signin-email"
-                  className="peer w-full bg-slate-900/50 border border-slate-700 text-white px-10 py-4 rounded-lg outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all placeholder-transparent"
-                  placeholder="Email"
-                />
-                <label
-                  htmlFor="signin-email"
-                  className="absolute left-10 -top-2.5 bg-[#0f111a] px-2 text-xs text-slate-500 peer-placeholder-shown:text-base peer-placeholder-shown:text-slate-500 peer-placeholder-shown:top-[14px] peer-focus:-top-2.5 peer-focus:text-xs peer-focus:text-violet-400 transition-all cursor-text font-mono"
-                >
-                  email
-                </label>
-              </div>
-
-              {/* Input: Password */}
-              <div className="group relative">
-                <Lock className="absolute left-3 top-4 text-slate-500 w-5 h-5 group-focus-within:text-violet-400 transition-colors" />
-                <input
-                  required
-                  type="password"
-                  id="signin-pass"
-                  className="peer w-full bg-slate-900/50 border border-slate-700 text-white px-10 py-4 rounded-lg outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all placeholder-transparent"
-                  placeholder="Password"
-                />
-                <label
-                  htmlFor="signin-pass"
-                  className="absolute left-10 -top-2.5 bg-[#0f111a] px-2 text-xs text-slate-500 peer-placeholder-shown:text-base peer-placeholder-shown:text-slate-500 peer-placeholder-shown:top-[14px] peer-focus:-top-2.5 peer-focus:text-xs peer-focus:text-violet-400 transition-all cursor-text font-mono"
-                >
-                  access_key
-                </label>
-              </div>
-            </div>
-
-            <a
-              href="#"
-              className="text-slate-500 text-xs mt-6 hover:text-violet-400 transition-colors font-mono"
-            >
-              Forgot your password?
-            </a>
-
-            <button
-              type="submit"
-              disabled={isAuthAttempting}
-              className="mt-8 w-full bg-violet-600 hover:bg-violet-500 text-white font-bold py-3 px-12 rounded-lg transition-all transform hover:-translate-y-0.5 shadow-[0_0_20px_rgba(139,92,246,0.3)] hover:shadow-[0_0_30px_rgba(139,92,246,0.5)] flex items-center justify-center gap-2 group"
-            >
-              {isAuthAttempting ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <Braces
-                  size={18}
-                  className="group-hover:rotate-90 transition-transform duration-300"
-                />
-              )}
-              <span>
-                {isAuthAttempting ? "AUTHORIZING..." : "INITIALIZE_SESSION"}
-              </span>
-            </button>
-          </form>
-        </div>
-
-        {/* --- Overlay Container (Hidden on Mobile, handles the sliding part) --- */}
-        <div
-          className={`
-            hidden md:block
-            absolute top-0 left-1/2 w-1/2 h-full overflow-hidden transition-transform duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] z-[100]
-            ${isSignUp ? "-translate-x-full" : ""}
-          `}
-        >
-          <div
-            className={`
-              bg-gradient-to-r from-violet-600 to-cyan-600
-              relative -left-full h-full w-[200%] transform transition-transform duration-700 ease-[cubic-bezier(0.23,1,0.32,1)]
-              ${isSignUp ? "translate-x-1/2" : "translate-x-0"}
-            `}
-          >
-            <div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]" />
-
-            {/* Left Overlay Panel (For Sign In) */}
-            <div
-              className={`
-                absolute top-0 flex flex-col items-center justify-center h-full w-1/2 px-12 text-center transition-transform duration-700 ease-[cubic-bezier(0.23,1,0.32,1)]
-                translate-x-0
-                ${isSignUp ? "translate-x-0" : "-translate-x-[20%]"}
-              `}
-            >
-              <div className="mb-8 p-6 bg-white/10 rounded-2xl backdrop-blur-xl border border-white/20 shadow-2xl">
-                <Cpu size={64} className="text-white animate-pulse" />
-              </div>
-              <h1 className="text-4xl font-bold text-white mb-4 tracking-tight">
-                Already <br /> Connected?
-              </h1>
-              <p className="text-blue-100 mb-10 text-sm leading-relaxed font-light max-w-[260px]">
-                Re-establish connection to the mainframe and sync your latest
-                commits.
-              </p>
-              <button
-                type="button"
-                onClick={() => setIsSignUp(false)}
-                className="relative px-8 py-3 text-white font-bold rounded-lg overflow-hidden group border border-white/50"
-              >
-                <span className="absolute inset-0 w-full h-full bg-white/20 group-hover:bg-white/30 transition-colors"></span>
-                <span className="relative flex items-center gap-2">
-                  <span className="w-2 h-2 bg-green-400 rounded-full animate-ping"></span>
-                  SIGN IN
-                </span>
-              </button>
-            </div>
-
-            {/* Right Overlay Panel (For Sign Up) */}
-            <div
-              className={`
-                absolute top-0 right-0 flex flex-col items-center justify-center h-full w-1/2 px-12 text-center transition-transform duration-700 ease-[cubic-bezier(0.23,1,0.32,1)]
-                ${isSignUp ? "translate-x-[20%]" : "translate-x-0"}
-              `}
-            >
-              <div className="mb-8 p-6 bg-white/10 rounded-2xl backdrop-blur-xl border border-white/20 shadow-2xl">
-                <Terminal size={64} className="text-white" />
-              </div>
-              <h1 className="text-4xl font-bold text-white mb-4 tracking-tight">
-                New <br /> Protocol?
-              </h1>
-              <p className="text-blue-100 mb-10 text-sm leading-relaxed font-light max-w-[260px]">
-                Initialize a new developer instance and start building your
-                legacy.
-              </p>
-              <button
-                type="button"
-                onClick={() => setIsSignUp(true)}
-                className="relative px-8 py-3 text-white font-bold rounded-lg overflow-hidden group border border-white/50"
-              >
-                <span className="absolute inset-0 w-full h-full bg-white/20 group-hover:bg-white/30 transition-colors"></span>
-                <span className="relative flex items-center gap-2">
-                  <span className="w-2 h-2 bg-cyan-300 rounded-full animate-pulse"></span>
-                  SIGN UP
-                </span>
-              </button>
-            </div>
-          </div>
-        </div>
+        {/* Overlay */}
+        <AuthOverlay isSignUp={isSignUp} onToggleForms={setIsSignUp} />
       </div>
     </div>
   );
