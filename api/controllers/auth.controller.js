@@ -1,119 +1,497 @@
 import jwt from "jsonwebtoken";
-import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import User from "../models/user.model.js";
 import { errorHandler } from "../utils/error.js";
+import {
+	sendVerificationEmail,
+	sendPasswordResetEmail,
+} from "../utils/email.js";
 
 const isValidEmail = (email) => {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+	return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 };
 
 const generateToken = (userId) => {
-  return jwt.sign({ id: userId }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN || "7d",
-  });
+	return jwt.sign({ id: userId }, process.env.JWT_SECRET, {
+		expiresIn: process.env.JWT_EXPIRES_IN || "7d",
+	});
 };
 
 const sanitizeUser = (user) => {
-  const userObject = user.toObject();
-  delete userObject.password;
-  return userObject;
+	const userObject = user.toObject();
+	delete userObject.password;
+	delete userObject.emailVerificationToken;
+	delete userObject.emailVerificationExpires;
+	delete userObject.passwordResetToken;
+	delete userObject.passwordResetExpires;
+	return userObject;
 };
 
+const setTokenCookie = (res, token) => {
+	res.cookie("access_token", token, {
+		httpOnly: true,
+		secure: process.env.NODE_ENV === "production",
+		sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+		maxAge: 7 * 24 * 60 * 60 * 1000,
+	});
+};
+
+// ─── SIGNUP ───────────────────────────────────────────────
 export const signup = async (req, res, next) => {
-  try {
-    const { username, email, password, avatar } = req.body;
+	try {
+		const { username, email, password, avatar } = req.body;
 
-    if (!username || !email || !password) {
-      return next(errorHandler(400, "username, email and password are required"));
-    }
+		console.log("[SIGNUP] Request from:", email);
 
-    if (username.trim().length < 3) {
-      return next(errorHandler(400, "username must be at least 3 characters"));
-    }
+		if (!username || !email || !password) {
+			return next(errorHandler(400, "Username, email and password are required"));
+		}
 
-    if (!isValidEmail(email)) {
-      return next(errorHandler(400, "invalid email format"));
-    }
+		if (username.trim().length < 3) {
+			return next(errorHandler(400, "Username must be at least 3 characters long"));
+		}
 
-    if (password.length < 8) {
-      return next(errorHandler(400, "password must be at least 8 characters"));
-    }
+		if (!isValidEmail(email)) {
+			return next(errorHandler(400, "Please enter a valid email address"));
+		}
 
-    const existingUser = await User.findOne({
-      $or: [{ email: email.toLowerCase() }, { username: username.trim() }],
-    });
+		if (password.length < 8) {
+			return next(errorHandler(400, "Password must be at least 8 characters long"));
+		}
 
-    if (existingUser) {
-      return next(errorHandler(409, "user already exists"));
-    }
+		const existingUser = await User.findOne({
+			$or: [{ email: email.toLowerCase() }, { username: username.trim() }],
+		});
 
-    const user = await User.create({
-      username: username.trim(),
-      email: email.toLowerCase(),
-      password,
-      avatar: avatar || "",
-    });
+		if (existingUser) {
+			if (existingUser.email === email.toLowerCase()) {
+				return next(errorHandler(409, "Email is already registered. Please sign in instead."));
+			}
+			return next(errorHandler(409, "Username is already taken. Please choose another."));
+		}
 
-    return res.status(201).json({
-      success: true,
-      message: "signup successful",
-      user: sanitizeUser(user),
-    });
-  } catch (error) {
-    return next(error);
-  }
+		const user = await User.create({
+			username: username.trim(),
+			email: email.toLowerCase(),
+			password,
+			avatar: avatar || "",
+			authProvider: "local",
+		});
+
+		console.log("[SIGNUP] User created:", user._id);
+
+		// Generate and send verification email
+		const verificationToken = user.createEmailVerificationToken();
+		console.log("[SIGNUP] Token generated (plain):", verificationToken);
+		console.log("[SIGNUP] Token hashed & stored:", user.emailVerificationToken);
+		console.log("[SIGNUP] Token expires at:", new Date(user.emailVerificationExpires));
+
+		await user.save({ validateBeforeSave: false });
+		console.log("[SIGNUP] User saved with verification token");
+
+		try {
+			await sendVerificationEmail(user.email, verificationToken);
+			console.log("[SIGNUP] ✓ Verification email sent successfully");
+		} catch (emailError) {
+			console.error("[SIGNUP] ✗ Failed to send verification email:", emailError.message);
+			// Don't block signup if email fails — user can resend later
+		}
+
+		return res.status(201).json({
+			success: true,
+			message:
+				"Account created! Check your email to verify your account. Link expires in 24 hours.",
+		});
+	} catch (error) {
+		console.error("[SIGNUP] ✗ Error:", error.message);
+		return next(error);
+	}
 };
 
+// ─── SIGNIN ───────────────────────────────────────────────
 export const signin = async (req, res, next) => {
-  try {
-    const { email, password } = req.body;
+	try {
+		const { email, password } = req.body;
 
-    if (!email || !password) {
-      return next(errorHandler(400, "email and password are required"));
-    }
+		if (!email || !password) {
+			return next(errorHandler(400, "Email and password are required"));
+		}
 
-    if (!isValidEmail(email)) {
-      return next(errorHandler(400, "invalid email format"));
-    }
+		if (!isValidEmail(email)) {
+			return next(errorHandler(400, "Please enter a valid email address"));
+		}
 
-    const user = await User.findOne({ email: email.toLowerCase() }).select("+password");
+		const user = await User.findOne({ email: email.toLowerCase() }).select(
+			"+password"
+		);
 
-    if (!user) {
-      return next(errorHandler(404, "user not found"));
-    }
+		if (!user) {
+			return next(errorHandler(404, "No account found with this email. Please sign up first."));
+		}
 
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+		if (user.authProvider === "google") {
+			return next(
+				errorHandler(400, "This account uses Google sign-in. Please use the Google button to log in.")
+			);
+		}
 
-    if (!isPasswordValid) {
-      return next(errorHandler(401, "invalid credentials"));
-    }
+		const isPasswordValid = await user.comparePassword(password);
 
-    const token = generateToken(user._id);
-    const sanitizedUser = sanitizeUser(user);
+		if (!isPasswordValid) {
+			return next(errorHandler(401, "Incorrect password. Please try again."));
+		}
 
-    res.cookie("access_token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+		if (!user.isEmailVerified) {
+			return res.status(403).json({
+				success: false,
+				message: "Your email is not verified yet. Please check your email for a verification link. You can resend it if needed.",
+				needsVerification: true,
+				email: user.email,
+			});
+		}
 
-    return res.status(200).json({
-      success: true,
-      message: "signin successful",
-      token,
-      user: sanitizedUser,
-    });
-  } catch (error) {
-    return next(error);
-  }
+		const token = generateToken(user._id);
+		const sanitizedUser = sanitizeUser(user);
+
+		setTokenCookie(res, token);
+
+		return res.status(200).json({
+			success: true,
+			message: "Sign in successful! Welcome back.",
+			token,
+			user: sanitizedUser,
+		});
+	} catch (error) {
+		return next(error);
+	}
 };
 
-export const signout = async (req, res) => {
-  res.clearCookie("access_token");
+// ─── GOOGLE AUTH ──────────────────────────────────────────
+export const googleAuth = async (req, res, next) => {
+	try {
+		const { email, username, avatar } = req.body;
 
-  return res.status(200).json({
-    success: true,
-    message: "signout successful",
-  });
+		if (!email) {
+			return next(errorHandler(400, "email is required"));
+		}
+
+		let user = await User.findOne({ email: email.toLowerCase() });
+
+		if (user) {
+			// Existing user — just log them in
+			const token = generateToken(user._id);
+			const sanitizedUser = sanitizeUser(user);
+			setTokenCookie(res, token);
+
+			return res.status(200).json({
+				success: true,
+				message: "signin successful",
+				token,
+				user: sanitizedUser,
+			});
+		}
+
+		// New user — create account (auto-verified, no password needed for Google)
+		const generatedPassword =
+			Math.random().toString(36).slice(-8) +
+			Math.random().toString(36).slice(-8);
+
+		const sanitizedUsername =
+			(username || email.split("@")[0])
+				.replace(/[^a-zA-Z0-9]/g, "")
+				.toLowerCase()
+				.slice(0, 20) +
+			Math.random().toString(36).slice(-4);
+
+		user = await User.create({
+			username: sanitizedUsername,
+			email: email.toLowerCase(),
+			password: generatedPassword,
+			avatar: avatar || "",
+			authProvider: "google",
+			isEmailVerified: true,
+		});
+
+		const token = generateToken(user._id);
+		const sanitizedUser = sanitizeUser(user);
+		setTokenCookie(res, token);
+
+		return res.status(201).json({
+			success: true,
+			message: "Google signup successful",
+			token,
+			user: sanitizedUser,
+		});
+	} catch (error) {
+		return next(error);
+	}
+};
+
+// ─── VERIFY EMAIL ─────────────────────────────────────────
+export const verifyEmail = async (req, res, next) => {
+	try {
+		const { token } = req.query;
+
+		console.log("[VERIFY-EMAIL] Verification request with token:", token?.substring(0, 10) + "...");
+
+		if (!token) {
+			return next(errorHandler(400, "Verification token is required"));
+		}
+
+		const hashedToken = crypto
+			.createHash("sha256")
+			.update(token)
+			.digest("hex");
+
+		console.log("[VERIFY-EMAIL] Token hashed:", hashedToken.substring(0, 10) + "...");
+
+		const user = await User.findOne({
+			emailVerificationToken: hashedToken,
+			emailVerificationExpires: { $gt: Date.now() },
+		}).select("+emailVerificationToken +emailVerificationExpires");
+
+		if (!user) {
+			console.error("[VERIFY-EMAIL] ✗ No user found with this token or token expired");
+			return next(
+				errorHandler(400, "Invalid or expired verification token")
+			);
+		}
+
+		console.log("[VERIFY-EMAIL] ✓ User found:", user.email);
+		console.log("[VERIFY-EMAIL] ✓ Token is valid, expires at:", new Date(user.emailVerificationExpires));
+
+		user.isEmailVerified = true;
+		user.emailVerificationToken = undefined;
+		user.emailVerificationExpires = undefined;
+		await user.save({ validateBeforeSave: false });
+
+		console.log("[VERIFY-EMAIL] ✓ Email verified and user updated");
+
+		return res.status(200).json({
+			success: true,
+			message: "Email verified successfully! You can now sign in.",
+		});
+	} catch (error) {
+		console.error("[VERIFY-EMAIL] ✗ Error:", error.message);
+		return next(error);
+	}
+};
+
+// ─── RESEND VERIFICATION EMAIL ────────────────────────────
+export const resendVerificationEmail = async (req, res, next) => {
+	try {
+		const { email } = req.body;
+
+		if (!email) {
+			return next(errorHandler(400, "email is required"));
+		}
+
+		const user = await User.findOne({ email: email.toLowerCase() }).select(
+			"+emailVerificationToken +emailVerificationExpires"
+		);
+
+		if (!user) {
+			// Don't reveal if user exists — generic success message
+			return res.status(200).json({
+				success: true,
+				message:
+					"If an account with that email exists, a verification email has been sent.",
+			});
+		}
+
+		if (user.isEmailVerified) {
+			return res.status(200).json({
+				success: true,
+				message: "Your email is already verified. You can sign in.",
+			});
+		}
+
+		const verificationToken = user.createEmailVerificationToken();
+		await user.save({ validateBeforeSave: false });
+
+		await sendVerificationEmail(user.email, verificationToken);
+
+		return res.status(200).json({
+			success: true,
+			message:
+				"Verification email sent! Please check your inbox.",
+		});
+	} catch (error) {
+		return next(error);
+	}
+};
+
+// ─── FORGOT PASSWORD ──────────────────────────────────────
+export const forgotPassword = async (req, res, next) => {
+	try {
+		const { email } = req.body;
+
+		console.log("[FORGOT-PASS] Request from:", email);
+
+		if (!email) {
+			return next(errorHandler(400, "email is required"));
+		}
+
+		const user = await User.findOne({ email: email.toLowerCase() });
+
+		if (!user) {
+			console.log("[FORGOT-PASS] No user found with email:", email);
+			// Don't reveal if user exists
+			return res.status(200).json({
+				success: true,
+				message:
+					"If an account with that email exists, a password reset link has been sent.",
+			});
+		}
+
+		console.log("[FORGOT-PASS] User found:", user._id);
+
+		if (user.authProvider === "google") {
+			return next(
+				errorHandler(
+					400,
+					"This account uses Google sign-in. Password reset is not available."
+				)
+			);
+		}
+
+		const resetToken = user.createPasswordResetToken();
+		console.log("[FORGOT-PASS] Reset token generated (plain):", resetToken);
+		console.log("[FORGOT-PASS] Token hashed & stored:", user.passwordResetToken);
+		console.log("[FORGOT-PASS] Token expires at:", new Date(user.passwordResetExpires));
+
+		await user.save({ validateBeforeSave: false });
+		console.log("[FORGOT-PASS] User saved with reset token");
+
+		try {
+			await sendPasswordResetEmail(user.email, resetToken);
+			console.log("[FORGOT-PASS] ✓ Password reset email sent successfully");
+		} catch (emailError) {
+			console.error("[FORGOT-PASS] ✗ Failed to send password reset email:", emailError.message);
+			user.passwordResetToken = undefined;
+			user.passwordResetExpires = undefined;
+			await user.save({ validateBeforeSave: false });
+			return next(
+				errorHandler(500, "Failed to send password reset email. Please try again.")
+			);
+		}
+
+		return res.status(200).json({
+			success: true,
+			message:
+				"If an account with that email exists, a password reset link has been sent.",
+		});
+	} catch (error) {
+		console.error("[FORGOT-PASS] ✗ Error:", error.message);
+		return next(error);
+	}
+};
+
+// ─── RESET PASSWORD ──────────────────────────────────────
+export const resetPassword = async (req, res, next) => {
+	try {
+		const { token, newPassword } = req.body;
+
+		console.log("[RESET-PASS] Reset request with token:", token?.substring(0, 10) + "...");
+
+		if (!token || !newPassword) {
+			return next(errorHandler(400, "Token and new password are required"));
+		}
+
+		if (newPassword.length < 8) {
+			return next(errorHandler(400, "Password must be at least 8 characters"));
+		}
+
+		const hashedToken = crypto
+			.createHash("sha256")
+			.update(token)
+			.digest("hex");
+
+		console.log("[RESET-PASS] Token hashed:", hashedToken.substring(0, 10) + "...");
+
+		const user = await User.findOne({
+			passwordResetToken: hashedToken,
+			passwordResetExpires: { $gt: Date.now() },
+		}).select("+passwordResetToken +passwordResetExpires +password");
+
+		if (!user) {
+			console.error("[RESET-PASS] ✗ No user found with this token or token expired");
+			return next(errorHandler(400, "Invalid or expired reset token"));
+		}
+
+		console.log("[RESET-PASS] ✓ User found:", user._id);
+		console.log("[RESET-PASS] ✓ Token valid, expires at:", new Date(user.passwordResetExpires));
+
+		user.password = newPassword;
+		user.passwordResetToken = undefined;
+		user.passwordResetExpires = undefined;
+		await user.save();
+
+		console.log("[RESET-PASS] ✓ Password reset successful");
+
+		return res.status(200).json({
+			success: true,
+			message: "Password reset successful! You can now sign in with your new password.",
+		});
+	} catch (error) {
+		console.error("[RESET-PASS] ✗ Error:", error.message);
+		return next(error);
+	}
+};
+
+// ─── ONBOARDING ───────────────────────────────────────────
+export const saveOnboarding = async (req, res, next) => {
+	try {
+		const userId = req.user.id;
+		const onboardingData = req.body;
+
+		const user = await User.findByIdAndUpdate(
+			userId,
+			{
+				isOnboarded: true,
+				onboardingData,
+			},
+			{ new: true }
+		);
+
+		if (!user) {
+			return next(errorHandler(404, "User not found"));
+		}
+
+		return res.status(200).json({
+			success: true,
+			message: "Onboarding completed successfully",
+			user: sanitizeUser(user),
+		});
+	} catch (error) {
+		return next(error);
+	}
+};
+
+// ─── GET CURRENT USER ─────────────────────────────────────
+export const getMe = async (req, res, next) => {
+	try {
+		const user = await User.findById(req.user.id);
+
+		if (!user) {
+			return next(errorHandler(404, "User not found"));
+		}
+
+		return res.status(200).json({
+			success: true,
+			user: sanitizeUser(user),
+		});
+	} catch (error) {
+		return next(error);
+	}
+};
+
+// ─── SIGNOUT ──────────────────────────────────────────────
+export const signout = async (req, res) => {
+	res.clearCookie("access_token");
+
+	return res.status(200).json({
+		success: true,
+		message: "signout successful",
+	});
 };
