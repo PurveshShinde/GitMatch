@@ -2,8 +2,13 @@ import express from "express";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
+import cors from "cors";
 import authRoutes from "./routes/auth.route.js";
 dotenv.config();
+
+// Workaround for Node.js 22 + MongoDB Atlas TLS issue
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
 mongoose
   .connect(process.env.MONGO)
   .then(() => {
@@ -15,6 +20,12 @@ mongoose
 
 const app = express();
 
+app.use(
+  cors({
+    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    credentials: true,
+  }),
+);
 app.use(express.json());
 app.use(cookieParser());
 

@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { useSelector, useDispatch } from "react-redux";
+import { logout } from "../redux/authSlice.js";
 import {
   LayoutDashboard,
   User,
@@ -43,17 +45,9 @@ import {
   Menu as MenuIcon, // <-- Using the imported alias
 } from "lucide-react";
 
-// --- FIREBASE IMPORTS ---
-import { initializeApp, getApps, getApp } from "firebase/app";
+// --- FIREBASE IMPORTS (for Firestore goals/chat only) ---
+import { auth, db } from "../firebase";
 import {
-  getAuth,
-  onAuthStateChanged,
-  signOut,
-  signInWithCustomToken,
-  signInAnonymously,
-} from "firebase/auth";
-import {
-  getFirestore,
   doc,
   getDoc,
   collection,
@@ -67,35 +61,8 @@ import {
   orderBy,
 } from "firebase/firestore";
 
-// --- FIREBASE INITIALIZATION ---
-const firebaseConfig =
-  typeof __firebase_config !== "undefined"
-    ? JSON.parse(__firebase_config)
-    : null;
-
-const appId =
-  typeof __app_id !== "undefined" ? __app_id : "gitmatch-production";
-
-// Initialize Firebase safely
-let app;
-let auth;
-let db;
-
-try {
-  if (firebaseConfig && !getApps().length) {
-    app = initializeApp(firebaseConfig);
-    auth = getAuth(app);
-    db = getFirestore(app);
-  } else if (getApps().length) {
-    app = getApp();
-    auth = getAuth(app);
-    db = getFirestore(app);
-  } else {
-    console.warn("Firebase config not found. Running in Mock Mode.");
-  }
-} catch (error) {
-  console.error("Firebase initialization failed:", error);
-}
+const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || "http://localhost:3000";
+const appId = "gitmatch-production";
 
 // --- SUB-VIEWS COMPONENTS (No change) ---
 
@@ -792,8 +759,12 @@ const MessagesView = ({ followers, following, currentUser }) => {
 // --- MAIN COMPONENT ---
 const Dashboard = () => {
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
+  const dispatch = useDispatch();
+  const { currentUser, token } = useSelector((state) => state.auth);
   const [loading, setLoading] = useState(true);
+
+  // User object for Firebase chat compatibility
+  const user = currentUser ? { uid: currentUser._id, displayName: currentUser.username, ...currentUser } : null;
 
   // Initialize with null to show loading screen initially
   const [profile, setProfile] = useState(null);
@@ -922,94 +893,40 @@ const Dashboard = () => {
     }
   };
 
-  // --- AUTHENTICATION & DATA FETCHING ---
+  // --- AUTHENTICATION & DATA FETCHING (from Redux + MongoDB) ---
   useEffect(() => {
-    if (!auth) {
-      console.warn("Firebase Auth not initialized. Check configuration.");
-      setLoading(false);
+    if (!currentUser) {
+      navigate("/auth");
       return;
     }
 
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      if (currentUser) {
-        setUser(currentUser);
-        if (db) await fetchProfile(currentUser);
-      } else {
-        setUser(null);
-        setLoading(false);
-        navigate("/auth"); // Strict redirect
-      }
-    });
-    return () => unsubscribe();
-  }, []);
+    // Build profile from MongoDB user data (onboardingData)
+    const onboarding = currentUser.onboardingData || {};
+    const userData = {
+      displayName: currentUser.username || "Developer",
+      githubUsername: onboarding.githubUsername || "",
+      experienceYears: onboarding.experienceYears || "0-1",
+      weeklyAvailability: onboarding.weeklyAvailability || "10-20",
+      primaryLanguage: onboarding.primaryLanguage || "JavaScript",
+      coreSkills: onboarding.coreSkills || ["JavaScript"],
+      preferredTeamSize: onboarding.preferredTeamSize || "3-5",
+      preferredCommunication: onboarding.preferredCommunication || "Async",
+      role: onboarding.primaryLanguage || "Developer",
+      level: 1, // Will be overwritten by GitHub stats
+      xp: 0,
+      nextLevelXp: 200,
+    };
 
-  const fetchProfile = async (currentUser) => {
-    if (!db || !currentUser) return;
+    setProfile(userData);
+    setLoading(false);
 
-    try {
-      const docRef = doc(
-        db,
-        "artifacts",
-        appId,
-        "users",
-        currentUser.uid,
-        "profile",
-        "onboarding"
-      );
-      const docSnap = await getDoc(docRef);
-
-      let userData;
-
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        // Base stats
-        userData = {
-          ...data,
-          displayName:
-            data.displayName || currentUser.displayName || "Developer",
-          githubUsername: data.githubUsername || data.username || "",
-          experienceYears: data.experienceYears || data.experience || "0-1",
-          weeklyAvailability:
-            data.weeklyAvailability || data.availability || "10-20",
-          primaryLanguage: data.primaryLanguage || data.role || "JavaScript",
-          coreSkills: data.coreSkills || ["React", "Node.js"],
-          preferredTeamSize:
-            data.preferredTeamSize || data.prefTeamSize || "3-5",
-          preferredCommunication:
-            data.preferredCommunication || data.prefComm || "Async",
-          role: data.role || "Frontend Developer",
-          level: 1, // Will be overwritten by GitHub stats
-          xp: 0,
-        };
-      } else {
-        userData = {
-          displayName: currentUser.displayName || "New Member",
-          githubUsername: "",
-          coreSkills: ["JavaScript"],
-          level: 1,
-          xp: 0,
-          role: "Developer",
-          experienceYears: "0-1",
-          weeklyAvailability: "10h",
-          preferredTeamSize: "3-5",
-          preferredCommunication: "Async",
-        };
-      }
-
-      setProfile(userData);
-      setLoading(false);
-
-      const ghUser = userData.githubUsername;
-      if (ghUser && ghUser !== "gitmatch") {
-        fetchGitHubData(ghUser, userData.primaryLanguage);
-      } else {
-        fetchGitHubData("facebook", userData.primaryLanguage);
-      }
-    } catch (e) {
-      console.error("Error fetching profile:", e);
-      setLoading(false);
+    const ghUser = userData.githubUsername;
+    if (ghUser && ghUser !== "gitmatch") {
+      fetchGitHubData(ghUser, userData.primaryLanguage);
+    } else {
+      fetchGitHubData("facebook", userData.primaryLanguage);
     }
-  };
+  }, [currentUser, navigate]);
 
   // --- FIREBASE GOALS LISTENER ---
   useEffect(() => {
@@ -1054,15 +971,21 @@ const Dashboard = () => {
     return () => unsubscribe();
   }, [user, db]); // Rerun when user changes (logs in/out)
 
-  // --- LOGOUT (No change) ---
+  // --- LOGOUT ---
   const handleLogout = async () => {
     try {
-      if (auth) {
-        await signOut(auth);
-      }
-      navigate("/"); // Redirect to home
+      await fetch(`${API_BASE_URL}/api/auth/signout`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: "include",
+      });
     } catch (error) {
       console.error("Error signing out", error);
+    } finally {
+      dispatch(logout());
       navigate("/");
     }
   };

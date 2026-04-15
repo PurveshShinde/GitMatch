@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 
 const userSchema = new mongoose.Schema(
 	{
@@ -28,6 +29,39 @@ const userSchema = new mongoose.Schema(
 			default: "",
 			trim: true,
 		},
+		authProvider: {
+			type: String,
+			enum: ["local", "google"],
+			default: "local",
+		},
+		isEmailVerified: {
+			type: Boolean,
+			default: false,
+		},
+		emailVerificationToken: {
+			type: String,
+			select: false,
+		},
+		emailVerificationExpires: {
+			type: Date,
+			select: false,
+		},
+		passwordResetToken: {
+			type: String,
+			select: false,
+		},
+		passwordResetExpires: {
+			type: Date,
+			select: false,
+		},
+		isOnboarded: {
+			type: Boolean,
+			default: false,
+		},
+		onboardingData: {
+			type: mongoose.Schema.Types.Mixed,
+			default: null,
+		},
 	},
 	{ timestamps: true }
 );
@@ -41,6 +75,26 @@ userSchema.pre("save", async function preSave() {
 
 userSchema.methods.comparePassword = async function comparePassword(plainPassword) {
 	return bcrypt.compare(plainPassword, this.password);
+};
+
+userSchema.methods.createEmailVerificationToken = function () {
+	const token = crypto.randomBytes(32).toString("hex");
+	this.emailVerificationToken = crypto
+		.createHash("sha256")
+		.update(token)
+		.digest("hex");
+	this.emailVerificationExpires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
+	return token;
+};
+
+userSchema.methods.createPasswordResetToken = function () {
+	const token = crypto.randomBytes(32).toString("hex");
+	this.passwordResetToken = crypto
+		.createHash("sha256")
+		.update(token)
+		.digest("hex");
+	this.passwordResetExpires = Date.now() + 60 * 60 * 1000; // 1 hour
+	return token;
 };
 
 const User = mongoose.model("User", userSchema);
