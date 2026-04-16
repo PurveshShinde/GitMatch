@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
 import {
   Lock,
   Loader2,
@@ -13,6 +14,10 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
+import { resetPassword } from "../redux/authSlice";
+import PasswordStrength from "../components/PasswordStrength";
+import { usePasswordStrength } from "../hooks/usePasswordStrength";
+import { validatePassword, validateConfirmPassword } from "../utils/validation";
 
 const API_BASE_URL =
   import.meta.env?.VITE_API_BASE_URL || "http://localhost:3000";
@@ -20,55 +25,64 @@ const API_BASE_URL =
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const { loading, error: reduxError } = useSelector((state) => state.auth);
   const token = searchParams.get("token");
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
+
+  // Password strength hook
+  const passwordStrength = usePasswordStrength(password);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    setFieldErrors({});
 
-    if (password !== confirmPassword) {
-      setError("Passwords do not match.");
-      return;
+    // Validation
+    let hasErrors = false;
+    const errors = {};
+
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      errors.password = passwordError;
+      hasErrors = true;
     }
 
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
-      return;
+    if (!hasErrors && !passwordStrength.isStrong) {
+      errors.password = "Password does not meet all requirements";
+      hasErrors = true;
     }
 
-    setLoading(true);
+    const confirmError = validateConfirmPassword(password, confirmPassword);
+    if (confirmError) {
+      errors.confirmPassword = confirmError;
+      hasErrors = true;
+    }
+
+    if (hasErrors) {
+      setFieldErrors(errors);
+      return;
+    }
 
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/auth/reset-password`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token, newPassword: password }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (data.success) {
-        setSuccess(true);
-        setMessage(data.message);
-      } else {
-        setError(data.message || "Password reset failed.");
-      }
+      const result = await dispatch(
+        resetPassword({ token, newPassword: password })
+      ).unwrap();
+      setSuccess(true);
+      setMessage(result.message || "Password reset successfully!");
+      setTimeout(() => {
+        navigate("/auth", { state: { mode: "signin" } });
+      }, 2000);
     } catch (err) {
-      setError("Network error. Please try again.");
-    } finally {
-      setLoading(false);
+      setError(err || "Password reset failed.");
     }
   };
 
@@ -160,8 +174,21 @@ export default function ResetPassword() {
                 required
                 type={showPassword ? "text" : "password"}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="peer w-full bg-slate-900/50 border border-slate-700 text-white px-10 pr-12 py-4 rounded-lg outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all placeholder-transparent"
+                onChange={(e) => {
+                  const newPassword = e.target.value;
+                  setPassword(newPassword);
+                  passwordStrength.updatePassword(newPassword);
+                  setFieldErrors((prev) => {
+                    const newErrors = { ...prev };
+                    delete newErrors.password;
+                    return newErrors;
+                  });
+                }}
+                className={`peer w-full bg-slate-900/50 border text-white px-10 pr-12 py-4 rounded-lg outline-none focus:ring-1 transition-all placeholder-transparent ${
+                  fieldErrors.password
+                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                    : "border-slate-700 focus:border-violet-500 focus:ring-violet-500"
+                }`}
                 placeholder="New Password"
               />
               <label className="absolute left-10 -top-2.5 bg-[#0f111a] px-2 text-xs text-slate-500 peer-placeholder-shown:text-base peer-placeholder-shown:text-slate-500 peer-placeholder-shown:top-[14px] peer-focus:-top-2.5 peer-focus:text-xs peer-focus:text-violet-400 transition-all cursor-text font-mono">
@@ -178,7 +205,20 @@ export default function ResetPassword() {
                   <Eye className="w-5 h-5" />
                 )}
               </button>
+              {fieldErrors.password && (
+                <p className="text-red-400 text-xs mt-1 font-mono">
+                  {fieldErrors.password}
+                </p>
+              )}
             </div>
+
+            {/* Password Strength Checklist */}
+            {password && (
+              <PasswordStrength
+                strength={passwordStrength.strength}
+                requirementsMet={passwordStrength.requirementsMet}
+              />
+            )}
 
             {/* Confirm Password */}
             <div className="group relative">
@@ -187,8 +227,19 @@ export default function ResetPassword() {
                 required
                 type={showConfirm ? "text" : "password"}
                 value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="peer w-full bg-slate-900/50 border border-slate-700 text-white px-10 pr-12 py-4 rounded-lg outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all placeholder-transparent"
+                onChange={(e) => {
+                  setConfirmPassword(e.target.value);
+                  setFieldErrors((prev) => {
+                    const newErrors = { ...prev };
+                    delete newErrors.confirmPassword;
+                    return newErrors;
+                  });
+                }}
+                className={`peer w-full bg-slate-900/50 border text-white px-10 pr-12 py-4 rounded-lg outline-none focus:ring-1 transition-all placeholder-transparent ${
+                  fieldErrors.confirmPassword
+                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                    : "border-slate-700 focus:border-violet-500 focus:ring-violet-500"
+                }`}
                 placeholder="Confirm Password"
               />
               <label className="absolute left-10 -top-2.5 bg-[#0f111a] px-2 text-xs text-slate-500 peer-placeholder-shown:text-base peer-placeholder-shown:text-slate-500 peer-placeholder-shown:top-[14px] peer-focus:-top-2.5 peer-focus:text-xs peer-focus:text-violet-400 transition-all cursor-text font-mono">
@@ -205,13 +256,11 @@ export default function ResetPassword() {
                   <Eye className="w-5 h-5" />
                 )}
               </button>
-            </div>
-
-            {/* Password strength hint */}
-            <div className="p-3 bg-slate-800/50 border border-slate-700 rounded-lg">
-              <p className="text-xs text-slate-400 font-mono">
-                PASSWORD_REQUIREMENTS: Minimum 8 characters
-              </p>
+              {fieldErrors.confirmPassword && (
+                <p className="text-red-400 text-xs mt-1 font-mono">
+                  {fieldErrors.confirmPassword}
+                </p>
+              )}
             </div>
 
             {error && (
@@ -226,8 +275,14 @@ export default function ResetPassword() {
 
             <button
               type="submit"
-              disabled={loading}
-              className="w-full bg-violet-600 hover:bg-violet-500 text-white font-bold py-3 px-6 rounded-lg transition-all transform hover:-translate-y-0.5 shadow-[0_0_20px_rgba(139,92,246,0.3)] hover:shadow-[0_0_30px_rgba(139,92,246,0.5)] flex items-center justify-center gap-2"
+              disabled={
+                loading ||
+                Object.keys(fieldErrors).length > 0 ||
+                !password ||
+                !confirmPassword ||
+                !passwordStrength.isStrong
+              }
+              className="w-full bg-violet-600 hover:bg-violet-500 disabled:bg-violet-600/50 disabled:cursor-not-allowed text-white font-bold py-3 px-6 rounded-lg transition-all transform hover:-translate-y-0.5 shadow-[0_0_20px_rgba(139,92,246,0.3)] hover:shadow-[0_0_30px_rgba(139,92,246,0.5)] flex items-center justify-center gap-2"
             >
               {loading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />

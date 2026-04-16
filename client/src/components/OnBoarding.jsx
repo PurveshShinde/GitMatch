@@ -211,30 +211,67 @@ export default function Onboarding() {
 
   // Handlers
   const handleNext = () => {
-    if (step === 1 && (!formData.accountType || !formData.experienceYears))
-      return;
-    if (
-      step === 2 &&
-      (!formData.primaryLanguage || formData.coreSkills.length === 0)
-    )
-      return;
-    if (
-      step === 3 &&
-      (!formData.githubActivityLevel ||
-        formData.preferredIssueTypes.length === 0 ||
-        !formData.preferredRepoScale)
-    )
-      return;
-    if (
-      step === 4 &&
-      (!formData.goals.length ||
-        !formData.preferredTeamSize ||
-        !formData.preferredCommunication)
-    )
-      return;
-    if (step === 5 && !formData.skillVerificationChoice) return;
-    if (step === 6 && (!formData.weeklyAvailability || !formData.workStyle))
-      return;
+    setError(null);
+
+    if (step === 1) {
+      if (!formData.accountType) {
+        setError("Please select your account type");
+        return;
+      }
+      if (!formData.experienceYears) {
+        setError("Please select your experience level");
+        return;
+      }
+    } else if (step === 2) {
+      if (!formData.primaryLanguage) {
+        setError("Please select your primary programming language");
+        return;
+      }
+      if (formData.coreSkills.length === 0) {
+        setError("Please select at least one core skill");
+        return;
+      }
+    } else if (step === 3) {
+      if (!formData.githubActivityLevel) {
+        setError("Please select your GitHub activity level");
+        return;
+      }
+      if (formData.preferredIssueTypes.length === 0) {
+        setError("Please select at least one issue type");
+        return;
+      }
+      if (!formData.preferredRepoScale) {
+        setError("Please select your preferred repository scale");
+        return;
+      }
+    } else if (step === 4) {
+      if (formData.goals.length === 0) {
+        setError("Please select at least one goal");
+        return;
+      }
+      if (!formData.preferredTeamSize) {
+        setError("Please select your preferred team size");
+        return;
+      }
+      if (!formData.preferredCommunication) {
+        setError("Please select your preferred communication style");
+        return;
+      }
+    } else if (step === 5) {
+      if (!formData.skillVerificationChoice) {
+        setError("Please select your skill verification preference");
+        return;
+      }
+    } else if (step === 6) {
+      if (!formData.weeklyAvailability) {
+        setError("Please select your weekly availability");
+        return;
+      }
+      if (!formData.workStyle) {
+        setError("Please select your work style");
+        return;
+      }
+    }
 
     setStep((prev) => Math.min(prev + 1, totalSteps));
   };
@@ -263,10 +300,51 @@ export default function Onboarding() {
     e.preventDefault();
     if (isSubmitting) return;
 
-    setIsSubmitting(true);
     setError(null);
 
+    // Final validation before submission
+    if (!formData.accountType || !formData.experienceYears) {
+      setError("Step 1: Please complete all required fields");
+      return;
+    }
+    if (!formData.primaryLanguage || formData.coreSkills.length === 0) {
+      setError("Step 2: Please complete all required fields");
+      return;
+    }
+    if (
+      !formData.githubActivityLevel ||
+      formData.preferredIssueTypes.length === 0 ||
+      !formData.preferredRepoScale
+    ) {
+      setError("Step 3: Please complete all required fields");
+      return;
+    }
+    if (
+      formData.goals.length === 0 ||
+      !formData.preferredTeamSize ||
+      !formData.preferredCommunication
+    ) {
+      setError("Step 4: Please complete all required fields");
+      return;
+    }
+    if (!formData.skillVerificationChoice) {
+      setError("Step 5: Please complete all required fields");
+      return;
+    }
+    if (!formData.weeklyAvailability || !formData.workStyle) {
+      setError("Step 6: Please complete all required fields");
+      return;
+    }
+
+    setIsSubmitting(true);
+
     try {
+      // Trim GitHub username if provided
+      const dataToSubmit = {
+        ...formData,
+        githubUsername: formData.githubUsername.trim(),
+      };
+
       const response = await fetch(`${API_BASE_URL}/api/auth/onboarding`, {
         method: "POST",
         headers: {
@@ -274,7 +352,7 @@ export default function Onboarding() {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         credentials: "include",
-        body: JSON.stringify(formData),
+        body: JSON.stringify(dataToSubmit),
       });
 
       const data = await response.json();
@@ -286,10 +364,11 @@ export default function Onboarding() {
         }
         navigate("/Dashboard");
       } else {
-        setError(data.message || "Failed to save profile.");
+        setError(data.message || "Failed to save profile. Please try again.");
       }
     } catch (err) {
-      setError("Network error. Please try again.");
+      setError("Network error. Please check your connection and try again.");
+      console.error("Onboarding error:", err);
     } finally {
       setIsSubmitting(false);
     }

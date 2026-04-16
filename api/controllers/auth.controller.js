@@ -232,7 +232,10 @@ export const verifyEmail = async (req, res, next) => {
 	try {
 		const { token } = req.query;
 
-		console.log("[VERIFY-EMAIL] Verification request with token:", token?.substring(0, 10) + "...");
+		console.log(
+			"[VERIFY-EMAIL] Verification request with token:",
+			token?.substring(0, 10) + "..."
+		);
 
 		if (!token) {
 			return next(errorHandler(400, "Verification token is required"));
@@ -245,24 +248,41 @@ export const verifyEmail = async (req, res, next) => {
 
 		console.log("[VERIFY-EMAIL] Token hashed:", hashedToken.substring(0, 10) + "...");
 
+		// NOTE: We intentionally do NOT filter by expiry in the DB query.
+		// In React dev StrictMode, this endpoint can be hit twice; making it
+		// idempotent prevents a "success then failure" UX.
 		const user = await User.findOne({
 			emailVerificationToken: hashedToken,
-			emailVerificationExpires: { $gt: Date.now() },
 		}).select("+emailVerificationToken +emailVerificationExpires");
 
 		if (!user) {
-			console.error("[VERIFY-EMAIL] ✗ No user found with this token or token expired");
-			return next(
-				errorHandler(400, "Invalid or expired verification token")
-			);
+			console.error("[VERIFY-EMAIL] ✗ No user found with this token");
+			return next(errorHandler(400, "Invalid or expired verification token"));
+		}
+
+		// If already verified, treat this as success (idempotent).
+		if (user.isEmailVerified) {
+			console.log("[VERIFY-EMAIL] ✓ Email already verified:", user.email);
+			return res.status(200).json({
+				success: true,
+				message: "Email verified successfully! You can now sign in.",
+			});
+		}
+
+		if (!user.emailVerificationExpires || user.emailVerificationExpires.getTime() <= Date.now()) {
+			console.error("[VERIFY-EMAIL] ✗ Token expired for user:", user.email);
+			return next(errorHandler(400, "Invalid or expired verification token"));
 		}
 
 		console.log("[VERIFY-EMAIL] ✓ User found:", user.email);
-		console.log("[VERIFY-EMAIL] ✓ Token is valid, expires at:", new Date(user.emailVerificationExpires));
+		console.log(
+			"[VERIFY-EMAIL] ✓ Token is valid, expires at:",
+			new Date(user.emailVerificationExpires)
+		);
 
 		user.isEmailVerified = true;
-		user.emailVerificationToken = undefined;
-		user.emailVerificationExpires = undefined;
+		// Keep the token until it expires so repeated requests (or refreshes)
+		// can still resolve to a verified user.
 		await user.save({ validateBeforeSave: false });
 
 		console.log("[VERIFY-EMAIL] ✓ Email verified and user updated");
