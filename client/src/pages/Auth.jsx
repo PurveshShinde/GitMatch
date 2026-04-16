@@ -24,6 +24,16 @@ import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { auth } from "../firebase";
 import { signupUser, signinUser, googleAuthUser, resendVerificationEmail } from "../redux/authSlice";
 import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
+import PasswordStrength from "../components/PasswordStrength";
+import { usePasswordStrength } from "../hooks/usePasswordStrength";
+import {
+  validateEmail,
+  validateUsername,
+  validatePassword,
+  validateConfirmPassword,
+  validateSignupEmail,
+  validateSigninEmail,
+} from "../utils/validation";
 
 export default function AuthPage() {
   const navigate = useNavigate();
@@ -53,6 +63,9 @@ export default function AuthPage() {
     password: "",
   });
   const [fieldErrors, setFieldErrors] = useState({});
+
+  // --- PASSWORD STRENGTH HOOK ---
+  const passwordStrength = usePasswordStrength(signupFields.password);
 
   // Handle initial mode from navigation state
   useEffect(() => {
@@ -112,6 +125,11 @@ export default function AuthPage() {
   const handleSignupFieldChange = (e) => {
     const { name, value } = e.target;
     setSignupFields((prev) => ({ ...prev, [name]: value }));
+
+    // Update password strength if password field changed
+    if (name === "password") {
+      passwordStrength.updatePassword(value);
+    }
 
     // Live validation
     let error = "";
@@ -191,52 +209,45 @@ export default function AuthPage() {
 
     if (isSignupForm) {
       // Signup validation
-      if (!username) {
-        errors.username = "Username is required";
-        hasErrors = true;
-      } else if (username.length < 3) {
-        errors.username = "Username must be at least 3 characters";
+      const usernameError = validateUsername(username);
+      if (usernameError) {
+        errors.username = usernameError;
         hasErrors = true;
       }
 
-      if (!email) {
-        errors.email = "Email is required";
-        hasErrors = true;
-      } else if (!validateEmail(email)) {
-        errors.email = "Please enter a valid email";
+      const emailError = validateSignupEmail(email);
+      if (emailError) {
+        errors.email = emailError;
         hasErrors = true;
       }
 
-      if (!password) {
-        errors.password = "Password is required";
-        hasErrors = true;
-      } else if (password.length < 8) {
-        errors.password = "Password must be at least 8 characters";
+      const passwordError = validatePassword(password);
+      if (passwordError) {
+        errors.password = passwordError;
         hasErrors = true;
       }
 
-      if (!confirmPassword) {
-        errors.confirmPassword = "Please confirm your password";
+      // Check if password meets strength requirements
+      if (!hasErrors && !passwordStrength.isStrong) {
+        errors.password = "Password does not meet all requirements";
         hasErrors = true;
-      } else if (password !== confirmPassword) {
-        errors.confirmPassword = "Passwords do not match";
+      }
+
+      const confirmError = validateConfirmPassword(password, confirmPassword);
+      if (confirmError) {
+        errors.confirmPassword = confirmError;
         hasErrors = true;
       }
     } else {
       // Signin validation
-      if (!email) {
-        errors.email = "Email is required";
-        hasErrors = true;
-      } else if (!validateEmail(email)) {
-        errors.email = "Please enter a valid email";
+      const emailError = validateSigninEmail(email);
+      if (emailError) {
+        errors.email = emailError;
         hasErrors = true;
       }
 
       if (!password) {
         errors.password = "Password is required";
-        hasErrors = true;
-      } else if (password.length < 8) {
-        errors.password = "Password must be at least 8 characters";
         hasErrors = true;
       }
     }
@@ -382,49 +393,16 @@ export default function AuthPage() {
           </button>
         </div>
 
-        {/* Error Message */}
-        {error && (
-          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 max-w-md z-50 backdrop-blur-sm shadow-lg">
-            <Alert variant="destructive" className="border-red-500 bg-red-900/20 text-red-600">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Error</AlertTitle>
-              <AlertDescription className="mt-2 text-sm">
-                {error}
-                {unverifiedEmail && (
-                  <button
-                    onClick={handleResendVerification}
-                    disabled={isAuthAttempting}
-                    className="mt-3 block w-full text-xs bg-red-600 hover:bg-red-700 disabled:bg-gray-600 text-white px-3 py-2 rounded transition-colors font-medium"
-                  >
-                    {isAuthAttempting ? "Resending..." : "Resend Verification Email"}
-                  </button>
-                )}
-              </AlertDescription>
-            </Alert>
-          </div>
-        )}
-
-        {/* Success Message */}
-        {successMessage && (
-          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 max-w-md z-50 backdrop-blur-sm shadow-lg">
-            <Alert className="border-green-500 bg-green-900/20 text-green-600">
-              <CheckCircle className="h-4 w-4" />
-              <AlertTitle>Success</AlertTitle>
-              <AlertDescription className="mt-2 text-sm whitespace-pre-line">
-                {successMessage}
-              </AlertDescription>
-            </Alert>
-          </div>
-        )}
 
         {/* --- Sign Up Form --- */}
         <div
           className={`
             transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)]
-            w-full md:w-1/2 
+            w-full md:w-1/2
             ${isSignUp ? "block" : "hidden"} md:block
-            relative p-8 md:p-0
+            relative p-4 md:p-0
             md:absolute md:top-0 md:h-full
+            overflow-y-auto max-h-screen
             ${
               isSignUp
                 ? "md:left-full md:-translate-x-full md:opacity-100 md:z-50"
@@ -436,6 +414,37 @@ export default function AuthPage() {
             onSubmit={(e) => handleAuthSubmit(e, true)}
             className="h-full flex flex-col items-center justify-center text-center bg-[#0f111a] p-0 md:px-12"
           >
+            {/* Error Message - Inline */}
+            {error && (
+              <Alert variant="destructive" className="w-full mb-6 border-red-500 bg-red-900/20 text-red-600">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription className="mt-2 text-sm">
+                  {error}
+                  {unverifiedEmail && (
+                    <button
+                      onClick={handleResendVerification}
+                      disabled={isAuthAttempting}
+                      className="mt-3 block w-full text-xs bg-red-600 hover:bg-red-700 disabled:bg-gray-600 text-white px-3 py-2 rounded transition-colors font-medium"
+                    >
+                      {isAuthAttempting ? "Resending..." : "Resend Verification Email"}
+                    </button>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Success Message - Inline */}
+            {successMessage && (
+              <Alert className="w-full mb-6 border-green-500 bg-green-900/20 text-green-600">
+                <CheckCircle className="h-4 w-4" />
+                <AlertTitle>Success</AlertTitle>
+                <AlertDescription className="mt-2 text-sm whitespace-pre-line">
+                  {successMessage}
+                </AlertDescription>
+              </Alert>
+            )}
+
             <div className="hidden md:flex items-center justify-center w-12 h-12 bg-cyan-500/10 rounded-xl mb-6 border border-cyan-500/20 shadow-[0_0_15px_rgba(6,182,212,0.2)]">
               <Terminal size={24} className="text-cyan-400" />
             </div>
@@ -504,7 +513,7 @@ export default function AuthPage() {
                   username
                 </label>
                 {fieldErrors.username && (
-                  <p className="text-red-400 text-xs mt-1 font-mono">{fieldErrors.username}</p>
+                  <p className="text-red-300 text-xs mt-2 px-2 py-1 bg-red-900/40 rounded border border-red-700/50 font-mono">{fieldErrors.username}</p>
                 )}
               </div>
 
@@ -532,7 +541,7 @@ export default function AuthPage() {
                   email
                 </label>
                 {fieldErrors.email && (
-                  <p className="text-red-400 text-xs mt-1 font-mono">{fieldErrors.email}</p>
+                  <p className="text-red-300 text-xs mt-2 px-2 py-1 bg-red-900/40 rounded border border-red-700/50 font-mono">{fieldErrors.email}</p>
                 )}
               </div>
 
@@ -574,9 +583,27 @@ export default function AuthPage() {
                   )}
                 </button>
                 {fieldErrors.password && (
-                  <p className="text-red-400 text-xs mt-1 font-mono">{fieldErrors.password}</p>
+                  <p className="text-red-300 text-xs mt-2 px-2 py-1 bg-red-900/40 rounded border border-red-700/50 font-mono">{fieldErrors.password}</p>
                 )}
               </div>
+
+              {/* Password Strength Checklist */}
+              {signupFields.password && (
+                <>
+                  <PasswordStrength
+                    strength={passwordStrength.strength}
+                    requirementsMet={passwordStrength.requirementsMet}
+                  />
+
+                  {/* Strong Password Indicator */}
+                  {passwordStrength.strengthLabel === "strong" && (
+                    <div className="flex items-center gap-2 p-3 bg-green-900/20 border border-green-600/50 rounded-lg text-green-400 text-sm font-mono">
+                      <CheckCircle size={18} className="text-green-400" />
+                      <span>✓ Password strength requirement met</span>
+                    </div>
+                  )}
+                </>
+              )}
 
               {/* Confirm Password */}
               <div className="group relative">
@@ -616,15 +643,23 @@ export default function AuthPage() {
                   )}
                 </button>
                 {fieldErrors.confirmPassword && (
-                  <p className="text-red-400 text-xs mt-1 font-mono">{fieldErrors.confirmPassword}</p>
+                  <p className="text-red-300 text-xs mt-2 px-2 py-1 bg-red-900/40 rounded border border-red-700/50 font-mono">{fieldErrors.confirmPassword}</p>
                 )}
               </div>
             </div>
 
             <button
               type="submit"
-              disabled={isAuthAttempting}
-              className="mt-8 w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 px-12 rounded-lg transition-all transform hover:-translate-y-0.5 shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:shadow-[0_0_30px_rgba(6,182,212,0.5)] flex items-center justify-center gap-2 group"
+              disabled={
+                isAuthAttempting ||
+                Object.keys(fieldErrors).length > 0 ||
+                !signupFields.username ||
+                !signupFields.email ||
+                !signupFields.password ||
+                !signupFields.confirmPassword ||
+                !passwordStrength.isStrong
+              }
+              className="mt-4 md:mt-8 w-full bg-cyan-600 hover:bg-cyan-500 disabled:bg-cyan-600/50 disabled:cursor-not-allowed text-white font-bold py-3 px-12 rounded-lg transition-all transform hover:-translate-y-0.5 shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:shadow-[0_0_30px_rgba(6,182,212,0.5)] flex items-center justify-center gap-2 group"
             >
               {isAuthAttempting ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
@@ -642,10 +677,11 @@ export default function AuthPage() {
         <div
           className={`
             transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)]
-            w-full md:w-1/2 
+            w-full md:w-1/2
             ${!isSignUp ? "block" : "hidden"} md:block
-            relative p-8 md:p-0
+            relative p-4 md:p-0
             md:absolute md:top-0 md:h-full
+            overflow-y-auto max-h-screen
             ${
               isSignUp
                 ? "md:translate-x-full md:opacity-0"
@@ -657,6 +693,37 @@ export default function AuthPage() {
             onSubmit={(e) => handleAuthSubmit(e, false)}
             className="h-full flex flex-col items-center justify-center text-center bg-[#0f111a] p-0 md:px-12"
           >
+            {/* Error Message - Inline */}
+            {error && (
+              <Alert variant="destructive" className="w-full mb-6 border-red-500 bg-red-900/20 text-red-600">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription className="mt-2 text-sm">
+                  {error}
+                  {unverifiedEmail && (
+                    <button
+                      onClick={handleResendVerification}
+                      disabled={isAuthAttempting}
+                      className="mt-3 block w-full text-xs bg-red-600 hover:bg-red-700 disabled:bg-gray-600 text-white px-3 py-2 rounded transition-colors font-medium"
+                    >
+                      {isAuthAttempting ? "Resending..." : "Resend Verification Email"}
+                    </button>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Success Message - Inline */}
+            {successMessage && (
+              <Alert className="w-full mb-6 border-green-500 bg-green-900/20 text-green-600">
+                <CheckCircle className="h-4 w-4" />
+                <AlertTitle>Success</AlertTitle>
+                <AlertDescription className="mt-2 text-sm whitespace-pre-line">
+                  {successMessage}
+                </AlertDescription>
+              </Alert>
+            )}
+
             <div className="hidden md:flex items-center justify-center w-12 h-12 bg-violet-500/10 rounded-xl mb-6 border border-violet-500/20 shadow-[0_0_15px_rgba(139,92,246,0.2)]">
               <Code2 size={24} className="text-violet-400" />
             </div>
@@ -725,7 +792,7 @@ export default function AuthPage() {
                   email
                 </label>
                 {fieldErrors.email && (
-                  <p className="text-red-400 text-xs mt-1 font-mono">{fieldErrors.email}</p>
+                  <p className="text-red-300 text-xs mt-2 px-2 py-1 bg-red-900/40 rounded border border-red-700/50 font-mono">{fieldErrors.email}</p>
                 )}
               </div>
 
@@ -767,7 +834,7 @@ export default function AuthPage() {
                   )}
                 </button>
                 {fieldErrors.password && (
-                  <p className="text-red-400 text-xs mt-1 font-mono">{fieldErrors.password}</p>
+                  <p className="text-red-300 text-xs mt-2 px-2 py-1 bg-red-900/40 rounded border border-red-700/50 font-mono">{fieldErrors.password}</p>
                 )}
               </div>
             </div>
@@ -781,8 +848,13 @@ export default function AuthPage() {
 
             <button
               type="submit"
-              disabled={isAuthAttempting}
-              className="mt-8 w-full bg-violet-600 hover:bg-violet-500 text-white font-bold py-3 px-12 rounded-lg transition-all transform hover:-translate-y-0.5 shadow-[0_0_20px_rgba(139,92,246,0.3)] hover:shadow-[0_0_30px_rgba(139,92,246,0.5)] flex items-center justify-center gap-2 group"
+              disabled={
+                isAuthAttempting ||
+                Object.keys(fieldErrors).length > 0 ||
+                !signinFields.email ||
+                !signinFields.password
+              }
+              className="mt-4 md:mt-8 w-full bg-violet-600 hover:bg-violet-500 disabled:bg-violet-600/50 disabled:cursor-not-allowed text-white font-bold py-3 px-12 rounded-lg transition-all transform hover:-translate-y-0.5 shadow-[0_0_20px_rgba(139,92,246,0.3)] hover:shadow-[0_0_30px_rgba(139,92,246,0.5)] flex items-center justify-center gap-2 group"
             >
               {isAuthAttempting ? (
                 <Loader2 className="w-5 h-5 animate-spin" />

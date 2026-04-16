@@ -30,7 +30,9 @@ export default function VerifyEmail() {
     const verifyEmail = async () => {
       try {
         const response = await fetch(
-          `${API_BASE_URL}/api/auth/verify-email?token=${token}`
+          `${API_BASE_URL}/api/auth/verify-email?token=${encodeURIComponent(
+            token
+          )}`
         );
         const data = await response.json();
 
