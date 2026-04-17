@@ -389,27 +389,27 @@ const TAXONOMY_DATA = [
  * Uses upsert to avoid duplicates on repeated runs.
  */
 export async function seedSkillTaxonomy() {
-	let seeded = 0;
-	let skipped = 0;
+	try {
+		const ops = TAXONOMY_DATA.map((entry) => ({
+			updateOne: {
+				filter: { canonical: entry.canonical },
+				update: { $set: entry },
+				upsert: true,
+			},
+		}));
 
-	for (const entry of TAXONOMY_DATA) {
-		try {
-			await SkillTaxonomy.findOneAndUpdate(
-				{ canonical: entry.canonical },
-				{ $set: entry },
-				{ upsert: true, new: true }
-			);
-			seeded++;
-		} catch (err) {
-			// Skip duplicates silently
-			skipped++;
-		}
+		const result = await SkillTaxonomy.bulkWrite(ops);
+
+		console.log(
+			`[TAXONOMY SEED] ✓ Seeding complete. Modified/Upserted: ${
+				result.modifiedCount + result.upsertedCount
+			}`
+		);
+		return { seeded: result.modifiedCount + result.upsertedCount, skipped: 0 };
+	} catch (err) {
+		console.error("[TAXONOMY SEED] Seed failed:", err);
+		return { seeded: 0, skipped: 0 };
 	}
-
-	console.log(
-		`[TAXONOMY SEED] ✓ ${seeded} skills seeded, ${skipped} skipped`
-	);
-	return { seeded, skipped };
 }
 
 export default TAXONOMY_DATA;

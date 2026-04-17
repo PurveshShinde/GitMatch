@@ -286,6 +286,8 @@ export default function AuthPage() {
       if (typeof err === "object" && err?.needsVerification) {
         setError("Your email is not verified yet. Please check your email for a verification link.");
         setUnverifiedEmail(err.email || email);
+      } else if (typeof err === "object" && err?.message) {
+        setError(err.message);
       } else if (typeof err === "string") {
         setError(err);
       } else {
