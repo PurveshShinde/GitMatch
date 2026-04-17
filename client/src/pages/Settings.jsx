@@ -41,6 +41,7 @@ import {
   unlink,
   getAdditionalUserInfo,
   GithubAuthProvider,
+  sendPasswordResetEmail,
 } from "firebase/auth";
 import {
   getFirestore,
@@ -455,6 +456,22 @@ const Settings = () => {
     }
   };
 
+  const handlePasswordReset = async () => {
+    const emailToReset = formData.email || user?.email;
+    if (!emailToReset) {
+      alert("No linked email address found.");
+      return;
+    }
+    
+    try {
+      await sendPasswordResetEmail(auth, emailToReset);
+      alert("A password reset link has been sent to your email from Firebase!");
+    } catch (error) {
+      console.error("Password reset error:", error);
+      alert(`Failed to send reset link: ${error.message}`);
+    }
+  };
+
   // --- SAVE HANDLER ---
   const handleSave = async () => {
     if (!user) {
@@ -659,9 +676,11 @@ const Settings = () => {
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
                   Password
                 </label>
-                <button className="w-full flex items-center justify-between bg-[#0a0a0f] border border-slate-800 rounded-lg px-4 py-2 text-sm text-slate-400 hover:text-white hover:border-slate-600 transition-all">
+                <button 
+                  onClick={handlePasswordReset}
+                  className="w-full flex items-center justify-between bg-[#0a0a0f] border border-slate-800 rounded-lg px-4 py-2 text-sm text-slate-400 hover:text-white hover:border-slate-600 transition-all">
                   <span>••••••••••••</span>
-                  <span className="text-xs text-blue-400">Change</span>
+                  <span className="text-xs text-blue-400">Send Reset Link</span>
                 </button>
               </div>
             </div>
