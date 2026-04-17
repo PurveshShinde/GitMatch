@@ -61,6 +61,8 @@ import {
   orderBy,
 } from "firebase/firestore";
 
+import RecommendedIssues from "../components/issues/RecommendedIssues.jsx";
+
 const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || "http://localhost:3000";
 const appId = "gitmatch-production";
 
@@ -95,71 +97,7 @@ const OverviewView = ({
   </div>
 );
 
-const IssuesView = ({ issues }) => {
-  return (
-    <div className="space-y-6 animate-in fade-in zoom-in-95 duration-300">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-          <Search className="w-6 h-6 text-violet-500" /> Find Issues
-        </h2>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {issues && issues.length > 0 ? (
-          issues.map((issue) => (
-            <div
-              key={issue.id}
-              className="bg-[#0f111a] border border-slate-800 rounded-xl p-5 hover:border-blue-500/30 transition-all group relative overflow-hidden flex flex-col justify-between"
-            >
-              <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-blue-500 to-purple-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-
-              <div>
-                <div className="flex justify-between items-start mb-3">
-                  <div className="flex items-center gap-2">
-                    <BookOpen className="w-4 h-4 text-slate-500" />
-                    <span className="text-xs text-slate-500 font-mono truncate max-w-[150px]">
-                      {issue.repoName}
-                    </span>
-                  </div>
-                  <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-green-500/10 text-green-400 border border-green-500/20">
-                    OPEN
-                  </span>
-                </div>
-
-                <h3 className="text-lg font-semibold text-slate-200 mb-2 group-hover:text-blue-400 transition-colors line-clamp-2">
-                  {issue.title}
-                </h3>
-
-                <div className="flex items-center gap-4 text-xs text-slate-500 mb-6">
-                  {issue.labels &&
-                    issue.labels.slice(0, 3).map((label, i) => (
-                      <span
-                        key={i}
-                        className="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700 truncate max-w-[80px]"
-                      >
-                        {label.name}
-                      </span>
-                    ))}
-                </div>
-              </div>
-
-              <button
-                onClick={() => window.open(issue.url, "_blank")}
-                className="w-full py-2 rounded-lg text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-900/20 flex items-center justify-center gap-2"
-              >
-                VIEW ON GITHUB <ExternalLink className="w-3 h-3" />
-              </button>
-            </div>
-          ))
-        ) : (
-          <div className="col-span-full text-center text-slate-500 py-10">
-            Loading issues...
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
+// IssuesView — replaced by RecommendedIssues (skill-based recommendation engine)
 
 // --- LAYOUT OPTIONS COMPONENT (No change) ---
 const LayoutToggle = ({ layout, setLayout }) => (
@@ -1016,7 +954,7 @@ const Dashboard = () => {
           />
         );
       case "Issues":
-        return <IssuesView issues={githubIssues} />;
+        return <RecommendedIssues />;
       case "Repos":
         return (
           <RepositoriesView

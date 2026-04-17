@@ -4,6 +4,9 @@ import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import authRoutes from "./routes/auth.route.js";
+import issuesRoutes from "./routes/issues.route.js";
+import { seedSkillTaxonomy } from "./data/skillTaxonomySeed.js";
+import { loadTaxonomy } from "./services/skillExtraction.service.js";
 dotenv.config();
 
 // Workaround for Node.js 22 + MongoDB Atlas TLS issue
@@ -11,8 +14,11 @@ process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 mongoose
   .connect(process.env.MONGO)
-  .then(() => {
+  .then(async () => {
     console.log("Connected to MongoDB!!!");
+    // Seed skill taxonomy and load into memory
+    await seedSkillTaxonomy();
+    await loadTaxonomy();
   })
   .catch((error) => {
     console.error("Error connecting to MongoDB:", error);
@@ -34,6 +40,7 @@ app.get("/api/health", (req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
+app.use("/api/issues", issuesRoutes);
 
 app.use((req, res, next) => {
   const error = new Error("Route not found");
