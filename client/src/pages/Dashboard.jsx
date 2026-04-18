@@ -42,18 +42,18 @@ import {
   Plus,
   Trash2,
   Loader2,
+  Lock,
+  ShieldCheck,
   Menu as MenuIcon, // <-- Using the imported alias
 } from "lucide-react";
 
-// --- FIREBASE IMPORTS (for Firestore goals/chat only) ---
+// --- FIREBASE IMPORTS (for Firestore goals only — messaging moved to MongoDB) ---
 import { auth, db } from "../firebase";
 import {
   doc,
-  getDoc,
   collection,
   addDoc,
   onSnapshot,
-  getDocs,
   serverTimestamp,
   updateDoc,
   deleteDoc,
@@ -62,6 +62,7 @@ import {
 } from "firebase/firestore";
 
 import RecommendedIssues from "../components/issues/RecommendedIssues.jsx";
+import { initSocket, getSocket, disconnectSocket } from "../utils/socket.js";
 
 const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || "http://localhost:3000";
 const appId = "gitmatch-production";
@@ -398,7 +399,7 @@ const RepositoriesView = ({ username, navigate }) => {
   );
 };
 
-const MessagesView = ({ followers, following, currentUser }) => {
+const MessagesView = ({ followers, following, currentUser, token }) => {
   const [activeChat, setActiveChat] = useState(null);
   const [peerUser, setPeerUser] = useState(null);
   const [input, setInput] = useState("");
@@ -416,7 +417,14 @@ const MessagesView = ({ followers, following, currentUser }) => {
     (v, i, a) => a.findIndex((v2) => v2.id === v.id) === i
   );
 
-  // 1. RESOLVE SELECTED GITHUB USER TO FIRESTORE USER (OR MOCK ID)
+  // ─── Socket init: one connection per session ──────────────────────────────
+  useEffect(() => {
+    if (!token) return;
+    initSocket(token);
+    return () => disconnectSocket();
+  }, [token]);
+
+  // ─── 1. RESOLVE PEER via MongoDB API (replaces Firestore full-table scan) ──
   useEffect(() => {
     if (!activeChat || !currentUser) return;
 
@@ -426,107 +434,79 @@ const MessagesView = ({ followers, following, currentUser }) => {
       setMessages([]);
 
       try {
-        // Fetch ALL users to find matching githubUsername (Strict mode limitation compliance)
-        // Ideally in prod: query(collection(db...users), where('githubUsername', '==', activeChat.login))
-        const usersRef = collection(db, "artifacts", appId, "users");
-        const snapshot = await getDocs(usersRef);
-        let found = null;
+        const res = await fetch(
+          `/api/users/lookup?githubUsername=${encodeURIComponent(activeChat.login)}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        const data = await res.json();
 
-        snapshot.forEach((doc) => {
-          const data = doc.data();
-          if (
-            data.githubUsername?.toLowerCase() ===
-            activeChat.login.toLowerCase()
-          ) {
-            found = { uid: doc.id, ...data };
-          }
-        });
-
-        if (found) {
-          setPeerUser(found); // Real GitMatch user found
+        if (data.success && data.user) {
+          setPeerUser(data.user);
         } else {
-          // User not found in DB, set a "Virtual" peer based on GitHub ID so chat still works (one-sided or future-proof)
+          // Contact isn't on GitMatch yet
           setPeerUser({
-            uid: `gh_${activeChat.login}`, // Virtual UID
+            uid: `gh_${activeChat.login}`,
             displayName: activeChat.login,
             isVirtual: true,
           });
         }
       } catch (e) {
-        console.error("Error resolving user", e);
+        console.error("[Chat] Error resolving user:", e);
         setLoadingChat(false);
       }
     };
-    resolveUser();
-  }, [activeChat, currentUser]);
 
-  // 2. LISTEN FOR MESSAGES
+    resolveUser();
+  }, [activeChat, currentUser, token]);
+
+  // ─── 2. LOAD HISTORY + JOIN SOCKET ROOM ────────────────────────────────────
   useEffect(() => {
+    const sock = getSocket();
     if (!peerUser || !currentUser) {
       setLoadingChat(false);
       return;
     }
 
-    // Create a unique chat ID based on sorting UIDs to ensure A->B is same as B->A
-    const chatID = [currentUser.uid, peerUser.uid].sort().join("_");
-    const msgsRef = collection(
-      db,
-      "artifacts",
-      appId,
-      "chats",
-      chatID,
-      "messages"
-    );
+    const chatId = [currentUser.uid, peerUser.uid].sort().join("_");
 
-    const unsubscribe = onSnapshot(
-      msgsRef,
-      (snapshot) => {
-        const loaded = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-        // Sort in memory (client-side) to avoid Firestore index requirements
-        loaded.sort(
-          (a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0)
-        );
-        setMessages(loaded);
-        setLoadingChat(false);
-      },
-      (error) => {
-        console.error("Msg Listener Error:", error);
-        setLoadingChat(false);
-      }
-    );
+    // Join the Socket.io room for real-time delivery
+    sock?.emit("joinChat", chatId);
 
-    return () => unsubscribe();
-  }, [peerUser, currentUser]);
+    // Fetch message history from MongoDB
+    setLoadingChat(true);
+    fetch(`/api/messages/${chatId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.success) setMessages(data.messages);
+      })
+      .catch((err) => console.error("[Chat] History fetch error:", err))
+      .finally(() => setLoadingChat(false));
 
-  const handleSend = async (e) => {
+    // Real-time: listen for incoming messages on this room
+    const handleNewMessage = (msg) => {
+      setMessages((prev) => [...prev, msg]);
+    };
+    sock?.on("newMessage", handleNewMessage);
+
+    return () => {
+      sock?.emit("leaveChat", chatId);
+      sock?.off("newMessage", handleNewMessage);
+    };
+  }, [peerUser, currentUser, token]);
+
+  // ─── 3. SEND via Socket.io (server saves to MongoDB + broadcasts) ──────────
+  const handleSend = (e) => {
     e.preventDefault();
-    if (!input.trim() || !peerUser) return;
+    if (!input.trim() || !peerUser || peerUser.isVirtual) return;
 
-    const text = input;
-    setInput(""); // Clear UI immediately
+    const sock = getSocket();
+    if (!sock?.connected) return;
 
-    try {
-      const chatID = [currentUser.uid, peerUser.uid].sort().join("_");
-      const msgsRef = collection(
-        db,
-        "artifacts",
-        appId,
-        "chats",
-        chatID,
-        "messages"
-      );
-
-      await addDoc(msgsRef, {
-        text,
-        senderId: currentUser.uid,
-        createdAt: serverTimestamp(),
-        senderName: currentUser.displayName || "User",
-      });
-    } catch (err) {
-      console.error("Error sending message:", err);
-      // NOTE: Using a custom message box instead of alert in production code
-      console.log("Failed to send message.");
-    }
+    const chatId = [currentUser.uid, peerUser.uid].sort().join("_");
+    sock.emit("sendMessage", { chatId, text: input.trim() });
+    setInput(""); // Optimistic clear — message arrives back via newMessage event
   };
 
   return (
@@ -624,7 +604,7 @@ const MessagesView = ({ followers, following, currentUser }) => {
               ) : (
                 messages.map((msg) => (
                   <div
-                    key={msg.id}
+                    key={msg._id}
                     className={`flex ${
                       msg.senderId === currentUser.uid
                         ? "justify-end"
@@ -646,10 +626,8 @@ const MessagesView = ({ followers, following, currentUser }) => {
                             : "text-slate-500"
                         }`}
                       >
-                        {msg.createdAt?.seconds
-                          ? new Date(
-                              msg.createdAt.seconds * 1000
-                            ).toLocaleTimeString([], {
+                        {msg.createdAt
+                          ? new Date(msg.createdAt).toLocaleTimeString([], {
                               hour: "2-digit",
                               minute: "2-digit",
                             })
@@ -715,6 +693,8 @@ const Dashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("Overview");
   const [searchTerm, setSearchTerm] = useState("");
+
+  // E2E Encryption state removed — using plaintext messaging for now
 
   // Goals state is now initialized as an empty array, populated by Firestore
   const [goals, setGoals] = useState([]);
@@ -866,6 +846,27 @@ const Dashboard = () => {
     }
   }, [currentUser, navigate]);
 
+  // Sync current user into Firestore so peers can find them by githubUsername
+  useEffect(() => {
+    if (!currentUser?._id || !db) return;
+    const syncUser = async () => {
+      try {
+        const userDocRef = doc(db, "artifacts", appId, "users", currentUser._id);
+        await setDoc(
+          userDocRef,
+          {
+            githubUsername: currentUser.onboardingData?.githubUsername || "",
+            displayName: currentUser.username || "",
+          },
+          { merge: true }
+        );
+      } catch (err) {
+        console.warn("[Firestore] User sync failed:", err);
+      }
+    };
+    syncUser();
+  }, [currentUser?._id]);
+
   // --- FIREBASE GOALS LISTENER ---
   useEffect(() => {
     if (!user || !db) return;
@@ -970,6 +971,7 @@ const Dashboard = () => {
             followers={followers}
             following={following}
             currentUser={user}
+            token={token}
           />
         );
       default:
