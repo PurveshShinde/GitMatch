@@ -62,6 +62,12 @@ const userSchema = new mongoose.Schema(
 			type: mongoose.Schema.Types.Mixed,
 			default: null,
 		},
+		// RSA-OAEP public key (Base64 SPKI) — stored for E2E message encryption.
+		// Private key never touches the server; this field is safe to expose to peers.
+		publicKey: {
+			type: String,
+			default: "",
+		},
 	},
 	{ timestamps: true }
 );
