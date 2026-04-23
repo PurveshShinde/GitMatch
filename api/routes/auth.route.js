@@ -19,8 +19,8 @@ const router = express.Router();
 // Rate limiting: 5 signup attempts per 15 minutes per IP
 router.post("/signup", rateLimit(5, 15 * 60 * 1000, "Too many signup attempts. Please try again later."), signup);
 
-// Rate limiting: 5 signin attempts per 15 minutes per IP
-router.post("/signin", rateLimit(5, 15 * 60 * 1000, "Too many signin attempts. Please try again later."), signin);
+// Rate limiting: 5 signin attempts per 5 minutes per IP
+router.post("/signin", rateLimit(5, 5 * 60 * 1000, "Too many signin attempts. Please try again later."), signin);
 
 // Rate limiting: 3 password reset requests per hour per IP
 router.post("/forgot-password", rateLimit(3, 60 * 60 * 1000, "Too many password reset requests. Please try again later."), forgotPassword);

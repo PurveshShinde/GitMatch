@@ -51,6 +51,7 @@ import {
 import { auth, db } from "../firebase";
 import {
   doc,
+  setDoc,
   collection,
   addDoc,
   onSnapshot,
@@ -405,7 +406,10 @@ const MessagesView = ({ followers, following, currentUser, token }) => {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState([]);
   const [loadingChat, setLoadingChat] = useState(false);
+  const [socketReady, setSocketReady] = useState(false);
   const messagesEndRef = useRef(null);
+  // Keep a stable ref to the active chatId so event handlers don't go stale
+  const activeChatIdRef = useRef(null);
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -420,11 +424,35 @@ const MessagesView = ({ followers, following, currentUser, token }) => {
   // ─── Socket init: one connection per session ──────────────────────────────
   useEffect(() => {
     if (!token) return;
-    initSocket(token);
-    return () => disconnectSocket();
+
+    const sock = initSocket(token);
+
+    const onConnect = () => {
+      console.log("[Socket] Connected:", sock.id);
+      setSocketReady(true);
+    };
+    const onDisconnect = () => {
+      console.log("[Socket] Disconnected");
+      setSocketReady(false);
+    };
+
+    // If already connected (e.g. hot-reload), fire immediately
+    if (sock.connected) {
+      setSocketReady(true);
+    } else {
+      sock.on("connect", onConnect);
+    }
+    sock.on("disconnect", onDisconnect);
+
+    return () => {
+      sock.off("connect", onConnect);
+      sock.off("disconnect", onDisconnect);
+      disconnectSocket();
+      setSocketReady(false);
+    };
   }, [token]);
 
-  // ─── 1. RESOLVE PEER via MongoDB API (replaces Firestore full-table scan) ──
+  // ─── 1. RESOLVE PEER via MongoDB API ────────────────────────────────────────
   useEffect(() => {
     if (!activeChat || !currentUser) return;
 
@@ -441,9 +469,10 @@ const MessagesView = ({ followers, following, currentUser, token }) => {
         const data = await res.json();
 
         if (data.success && data.user) {
+          // Server already returns { uid, displayName, githubUsername }
           setPeerUser(data.user);
         } else {
-          // Contact isn't on GitMatch yet
+          // Contact isn't on GitMatch yet — messaging not supported
           setPeerUser({
             uid: `gh_${activeChat.login}`,
             displayName: activeChat.login,
@@ -460,17 +489,23 @@ const MessagesView = ({ followers, following, currentUser, token }) => {
   }, [activeChat, currentUser, token]);
 
   // ─── 2. LOAD HISTORY + JOIN SOCKET ROOM ────────────────────────────────────
+  // Re-runs whenever peerUser resolves OR socket becomes ready
   useEffect(() => {
-    const sock = getSocket();
-    if (!peerUser || !currentUser) {
-      setLoadingChat(false);
+    if (!peerUser || !currentUser || !socketReady) {
+      if (!peerUser || !currentUser) setLoadingChat(false);
       return;
     }
 
-    const chatId = [currentUser.uid, peerUser.uid].sort().join("_");
+    const sock = getSocket();
+    if (!sock) return;
 
-    // Join the Socket.io room for real-time delivery
-    sock?.emit("joinChat", chatId);
+    // chatId: two sorted MongoDB ObjectId strings joined by "_"
+    const myId = currentUser._id || currentUser.uid;
+    const chatId = [myId, peerUser.uid].sort().join("_");
+    activeChatIdRef.current = chatId;
+
+    // Join the Socket.io room
+    sock.emit("joinChat", chatId);
 
     // Fetch message history from MongoDB
     setLoadingChat(true);
@@ -484,17 +519,25 @@ const MessagesView = ({ followers, following, currentUser, token }) => {
       .catch((err) => console.error("[Chat] History fetch error:", err))
       .finally(() => setLoadingChat(false));
 
-    // Real-time: listen for incoming messages on this room
+    // Real-time: listen for incoming messages
     const handleNewMessage = (msg) => {
-      setMessages((prev) => [...prev, msg]);
+      // Guard: only append if still in the same chat room
+      if (msg.chatId === activeChatIdRef.current) {
+        setMessages((prev) => {
+          // Deduplicate by _id to avoid double-append
+          if (prev.some((m) => m._id === msg._id)) return prev;
+          return [...prev, msg];
+        });
+      }
     };
-    sock?.on("newMessage", handleNewMessage);
+    sock.on("newMessage", handleNewMessage);
 
     return () => {
-      sock?.emit("leaveChat", chatId);
-      sock?.off("newMessage", handleNewMessage);
+      sock.emit("leaveChat", chatId);
+      sock.off("newMessage", handleNewMessage);
+      activeChatIdRef.current = null;
     };
-  }, [peerUser, currentUser, token]);
+  }, [peerUser, currentUser, token, socketReady]);
 
   // ─── 3. SEND via Socket.io (server saves to MongoDB + broadcasts) ──────────
   const handleSend = (e) => {
@@ -504,7 +547,8 @@ const MessagesView = ({ followers, following, currentUser, token }) => {
     const sock = getSocket();
     if (!sock?.connected) return;
 
-    const chatId = [currentUser.uid, peerUser.uid].sort().join("_");
+    const myId = currentUser._id || currentUser.uid;
+    const chatId = [myId, peerUser.uid].sort().join("_");
     sock.emit("sendMessage", { chatId, text: input.trim() });
     setInput(""); // Optimistic clear — message arrives back via newMessage event
   };
