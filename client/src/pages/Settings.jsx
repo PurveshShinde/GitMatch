@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useSelector, useDispatch } from "react-redux";
+import { updateUser } from "../redux/authSlice";
 import {
   User,
   Shield,
@@ -29,67 +31,8 @@ import {
   Unlink,
 } from "lucide-react";
 
-// --- FIREBASE IMPORTS ---
-import { initializeApp, getApps, getApp } from "firebase/app";
-import {
-  getAuth,
-  signOut,
-  onAuthStateChanged,
-  signInWithCustomToken,
-  signInWithPopup,
-  linkWithPopup,
-  unlink,
-  getAdditionalUserInfo,
-  GithubAuthProvider,
-  sendPasswordResetEmail,
-} from "firebase/auth";
-import {
-  getFirestore,
-  doc,
-  getDoc,
-  setDoc,
-  serverTimestamp,
-} from "firebase/firestore";
-
-// --- FIREBASE INITIALIZATION ---
-// Initialize Firebase safely to prevent duplicate app errors
-const firebaseConfig =
-  typeof __firebase_config !== "undefined" ? JSON.parse(__firebase_config) : {};
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-const auth = getAuth(app);
-const db = getFirestore(app);
-
-const appId =
-  typeof __app_id !== "undefined" ? __app_id : "gitmatch-production";
-
-// --- CUSTOM AUTH HOOK ---
-const useAuth = () => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const initAuth = async () => {
-      if (typeof __initial_auth_token !== "undefined" && __initial_auth_token) {
-        try {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } catch (e) {
-          console.error("Custom token sign-in failed:", e);
-        }
-      }
-    };
-    initAuth();
-
-    // Listen for real authentication status changes
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  return { user, loading };
-};
+// --- REDUX & API ---
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
 // --- HELPER: GITHUB AVATAR ---
 const githubAvatar = (username) =>
@@ -238,10 +181,12 @@ const Badge = ({ text, color = "blue" }) => {
 
 const Settings = () => {
   const navigate = useNavigate();
-  const { user, loading } = useAuth();
+  const dispatch = useDispatch();
+  const { currentUser } = useSelector((state) => state.auth);
 
   const [saving, setSaving] = useState(false);
   const [openSection, setOpenSection] = useState("account");
+  const [linkingGitHub, setLinkingGitHub] = useState(false);
 
   // Form States
   const [formData, setFormData] = useState({
@@ -281,59 +226,50 @@ const Settings = () => {
     glassMode: true,
   });
 
-  // --- DATA FETCHING ---
+  // --- DATA POPULATION ---
   useEffect(() => {
-    const fetchSettings = async () => {
-      if (!user) return;
+    if (currentUser) {
+      const onboardingData = currentUser.onboardingData || {};
+      setFormData((prev) => ({
+        ...prev,
+        displayName: currentUser.displayName || currentUser.username || "",
+        username: currentUser.username || "",
+        email: currentUser.email || "",
+        bio: onboardingData.bio || "",
+        timezone: onboardingData.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+        workHours: onboardingData.workHours || "09:00 - 17:00",
+        skills: Array.isArray(onboardingData.coreSkills)
+          ? onboardingData.coreSkills.join(", ")
+          : onboardingData.skills || "",
+        coreSkills: onboardingData.coreSkills || [],
+        role: onboardingData.role || "Frontend Developer",
+        experience: onboardingData.experience || "1-3 Years",
+        availability: onboardingData.availability || "Open to collaborate",
+        prefLevel: onboardingData.prefLevel || "Any Level",
+        prefComm: onboardingData.prefComm || "Async",
+        prefTeamSize: onboardingData.prefTeamSize || "3-5",
+        emailNotifs: onboardingData.emailNotifs !== false,
+        pushNotifs: onboardingData.pushNotifs || false,
+        publicProfile: onboardingData.publicProfile !== false,
+        hideEmail: onboardingData.hideEmail !== false,
+        theme: onboardingData.theme || "dark",
+        glassMode: onboardingData.glassMode !== false,
+        githubConnected: !!currentUser.githubUsername,
+      }));
+    }
+  }, [currentUser]);
 
-      try {
-        const docRef = doc(
-          db,
-          "artifacts",
-          appId,
-          "users",
-          user.uid,
-          "profile",
-          "onboarding"
-        );
-        const docSnap = await getDoc(docRef);
-
-        // Check Auth Provider State (Real-time Source of Truth)
-        const isGitHubLinked = user.providerData.some(
-          (p) => p.providerId === "github.com"
-        );
-
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-
-          const skillsString = Array.isArray(data.coreSkills)
-            ? data.coreSkills.join(", ")
-            : data.skills || "";
-
-          setFormData((prev) => ({
-            ...prev,
-            ...data,
-            skills: skillsString,
-            username: data.githubUsername || prev.username,
-            email: user.email || prev.email,
-            githubConnected: isGitHubLinked, // Override with actual auth state
-          }));
-        } else {
-          setFormData((prev) => ({
-            ...prev,
-            email: user.email,
-            githubConnected: isGitHubLinked,
-          }));
-        }
-      } catch (err) {
-        console.error("Error fetching user settings:", err);
+  // --- GITHUB CALLBACK MESSAGE LISTENER ---
+  useEffect(() => {
+    const handleMessage = (event) => {
+      if (event.data?.type === "github_auth_complete" && event.data?.code) {
+        exchangeCodeForGitHubAuth(event.data.code);
       }
     };
 
-    if (!loading && user) {
-      fetchSettings();
-    }
-  }, [user, loading]);
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, []);
 
   // --- HANDLERS ---
   const toggleSection = (section) => {
@@ -347,105 +283,131 @@ const Settings = () => {
   // --- GITHUB LOGIC: REAL-TIME AUTH ---
 
   const handleLinkGitHub = async () => {
-    if (!user) return;
+    const githubClientId = import.meta.env.VITE_GITHUB_CLIENT_ID;
+    const githubRedirectUri = import.meta.env.VITE_GITHUB_REDIRECT_URI;
+
+    if (!githubClientId || !githubRedirectUri) {
+      alert("GitHub OAuth credentials not configured.");
+      return;
+    }
 
     try {
-      const provider = new GithubAuthProvider();
-      // Request read access to get the username/handle
-      provider.addScope("read:user");
+      setLinkingGitHub(true);
+      const state = Math.random().toString(36).substring(7);
+      sessionStorage.setItem("github_oauth_state", state);
 
-      // Use linkWithPopup to attach to the CURRENT user
-      const result = await linkWithPopup(user, provider);
+      const authUrl = `https://github.com/login/oauth/authorize?client_id=${githubClientId}&redirect_uri=${encodeURIComponent(githubRedirectUri)}&scope=read:user&state=${state}`;
 
-      // Extract username from the specific provider result
-      const additionalUserInfo = getAdditionalUserInfo(result);
-      const ghUser =
-        additionalUserInfo?.username ||
-        result.user.providerData.find((p) => p.providerId === "github.com")
-          ?.uid; // Fallback
+      const width = 500;
+      const height = 600;
+      const left = window.screenX + (window.outerWidth - width) / 2;
+      const top = window.screenY + (window.outerHeight - height) / 2;
 
-      if (ghUser) {
-        // 1. Update Local State
-        setFormData((prev) => ({
-          ...prev,
-          username: ghUser,
-          githubConnected: true,
-        }));
+      const popup = window.open(
+        authUrl,
+        "github_auth",
+        `width=${width},height=${height},left=${left},top=${top},scrollbars=yes`
+      );
 
-        // 2. Update Database Immediately
-        const docRef = doc(
-          db,
-          "artifacts",
-          appId,
-          "users",
-          user.uid,
-          "profile",
-          "onboarding"
-        );
-        await setDoc(
-          docRef,
-          {
-            githubUsername: ghUser,
-            linkedAccounts: { github: true },
-            updatedAt: serverTimestamp(),
-          },
-          { merge: true }
-        );
-
-        alert(`Successfully connected GitHub account: ${ghUser}`);
-      } else {
-        alert("Connected to GitHub, but could not retrieve username.");
+      if (!popup) {
+        alert("Failed to open authorization popup. Please check your popup blocker settings.");
+        setLinkingGitHub(false);
+        return;
       }
+
+      const pollInterval = setInterval(() => {
+        try {
+          if (popup.closed) {
+            clearInterval(pollInterval);
+            const authCode = sessionStorage.getItem("github_auth_code");
+            if (authCode) {
+              sessionStorage.removeItem("github_auth_code");
+              exchangeCodeForGitHubAuth(authCode);
+            }
+            setLinkingGitHub(false);
+          }
+        } catch (e) {
+          console.error("Popup polling error:", e);
+        }
+      }, 500);
+
+      setTimeout(() => {
+        clearInterval(pollInterval);
+        if (!popup.closed) {
+          popup.close();
+        }
+        setLinkingGitHub(false);
+      }, 120000);
     } catch (e) {
-      console.error("Link GitHub Error:", e);
-      if (e.code === "auth/credential-already-in-use") {
-        alert(
-          "This GitHub account is already linked to another user. Please sign in with that account or unlink it first."
-        );
-      } else {
-        alert(`Failed to connect GitHub: ${e.message}`);
+      console.error("GitHub auth error:", e);
+      alert(`Failed to connect GitHub: ${e.message}`);
+      setLinkingGitHub(false);
+    }
+  };
+
+  const exchangeCodeForGitHubAuth = async (code) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/github`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ code }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to connect GitHub");
       }
+
+      // Update Redux with latest user data
+      if (data.user) {
+        dispatch(updateUser(data.user));
+      }
+
+      // Update local form state
+      setFormData((prev) => ({
+        ...prev,
+        username: data.user?.githubUsername || prev.username,
+        githubConnected: true,
+      }));
+
+      alert(`Successfully connected GitHub account: ${data.user?.githubUsername}`);
+    } catch (error) {
+      console.error("GitHub auth error:", error);
+      alert(`Failed to connect GitHub: ${error.message}`);
     }
   };
 
   const handleUnlinkGitHub = async () => {
-    if (!user) return;
-
     try {
-      // 1. Unlink from Firebase Auth (Real-time)
-      await unlink(user, "github.com");
+      const response = await fetch(`${API_BASE_URL}/api/users/unlink-github`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      });
 
-      // 2. Update Local State
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to unlink GitHub");
+      }
+
+      // Update Redux with latest user data
+      if (data.user) {
+        dispatch(updateUser(data.user));
+      }
+
       setFormData((prev) => ({
         ...prev,
         username: "",
         githubConnected: false,
       }));
 
-      // 3. Update Database Immediately
-      const docRef = doc(
-        db,
-        "artifacts",
-        appId,
-        "users",
-        user.uid,
-        "profile",
-        "onboarding"
-      );
-      await setDoc(
-        docRef,
-        {
-          githubUsername: "",
-          linkedAccounts: { github: false },
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
-
-      alert("GitHub account disconnected.");
-    } catch (e) {
-      console.error("Unlink GitHub Error:", e);
-      alert(`Failed to unlink GitHub: ${e.message}`);
+      alert("GitHub account disconnected successfully.");
+    } catch (error) {
+      console.error("Unlink GitHub error:", error);
+      alert(`Failed to unlink GitHub: ${error.message}`);
     }
   };
 
@@ -457,15 +419,26 @@ const Settings = () => {
   };
 
   const handlePasswordReset = async () => {
-    const emailToReset = formData.email || user?.email;
+    const emailToReset = formData.email || currentUser?.email;
     if (!emailToReset) {
       alert("No linked email address found.");
       return;
     }
-    
+
     try {
-      await sendPasswordResetEmail(auth, emailToReset);
-      alert("A password reset link has been sent to your email from Firebase!");
+      const response = await fetch(`${API_BASE_URL}/api/auth/forgot-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: emailToReset }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to send reset link");
+      }
+
+      alert("A password reset link has been sent to your email!");
     } catch (error) {
       console.error("Password reset error:", error);
       alert(`Failed to send reset link: ${error.message}`);
@@ -474,7 +447,7 @@ const Settings = () => {
 
   // --- SAVE HANDLER ---
   const handleSave = async () => {
-    if (!user) {
+    if (!currentUser) {
       alert("You must be logged in to save settings.");
       return;
     }
@@ -488,26 +461,47 @@ const Settings = () => {
         .filter((s) => s.length > 0);
 
       const dataToSave = {
-        ...formData,
-        coreSkills: processedSkills,
-        githubUsername: formData.username,
-        updatedAt: serverTimestamp(),
-        completedOnboarding: true,
+        displayName: formData.displayName,
+        username: formData.username,
+        email: formData.email,
+        onboardingData: {
+          bio: formData.bio,
+          timezone: formData.timezone,
+          workHours: formData.workHours,
+          skills: formData.skills,
+          coreSkills: processedSkills,
+          role: formData.role,
+          experience: formData.experience,
+          availability: formData.availability,
+          prefLevel: formData.prefLevel,
+          prefComm: formData.prefComm,
+          prefTeamSize: formData.prefTeamSize,
+          emailNotifs: formData.emailNotifs,
+          pushNotifs: formData.pushNotifs,
+          publicProfile: formData.publicProfile,
+          hideEmail: formData.hideEmail,
+          theme: formData.theme,
+          glassMode: formData.glassMode,
+        },
       };
 
-      const docRef = doc(
-        db,
-        "artifacts",
-        appId,
-        "users",
-        user.uid,
-        "profile",
-        "onboarding"
-      );
+      const response = await fetch(`${API_BASE_URL}/api/users/update-profile`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(dataToSave),
+      });
 
-      await setDoc(docRef, dataToSave, { merge: true });
+      const result = await response.json();
 
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      if (!response.ok) {
+        throw new Error(result.message || "Failed to save settings");
+      }
+
+      // Update Redux with the latest user data
+      if (result.user) {
+        dispatch(updateUser(result.user));
+      }
 
       alert("Settings saved successfully!");
     } catch (error) {
@@ -519,11 +513,10 @@ const Settings = () => {
   };
 
   const handleLogout = async () => {
-    await signOut(auth);
     navigate("/auth");
   };
 
-  if (loading)
+  if (!currentUser)
     return (
       <div className="min-h-screen bg-[#050508] flex items-center justify-center text-blue-500 font-mono">
         <div className="flex flex-col items-center gap-4">
@@ -668,7 +661,7 @@ const Settings = () => {
               <InputGroup
                 label="Email Address"
                 type="email"
-                value={formData.email || (user ? user.email : "")}
+                value={formData.email || (currentUser ? currentUser.email : "")}
                 onChange={(v) => handleChange("email", v)}
                 icon={Mail}
               />
