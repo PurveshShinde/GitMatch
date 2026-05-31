@@ -23,7 +23,7 @@ dotenv.config();
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 mongoose
-  .connect(process.env.MONGO)
+  .connect(process.env.MONGO, { family: 4 })
   .then(async () => {
     console.log("Connected to MongoDB!!!");
     await seedSkillTaxonomy();
