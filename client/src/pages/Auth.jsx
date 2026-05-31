@@ -22,7 +22,7 @@ import {
 
 import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { auth } from "../firebase";
-import { signupUser, signinUser, googleAuthUser, resendVerificationEmail } from "../redux/authSlice";
+import { signupUser, signinUser, googleAuthUser, githubAuthUser, resendVerificationEmail } from "../redux/authSlice";
 import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
 import PasswordStrength from "../components/PasswordStrength";
 import { usePasswordStrength } from "../hooks/usePasswordStrength";
@@ -84,6 +84,26 @@ export default function AuthPage() {
     window.addEventListener("mousemove", handleMouseMove);
     return () => window.removeEventListener("mousemove", handleMouseMove);
   }, []);
+
+  // GitHub Auth Message Listener
+  useEffect(() => {
+    const handleMessage = async (event) => {
+      if (event.data?.type === "github_auth_complete" && event.data?.code) {
+        try {
+          const authResult = await dispatch(githubAuthUser({ code: event.data.code })).unwrap();
+          setSuccessMessage("Sign in successful! Redirecting...");
+          setTimeout(() => {
+            navigate("/dashboard");
+          }, 1500);
+        } catch (err) {
+          setError(err || "GitHub authentication failed.");
+        }
+      }
+    };
+
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [dispatch, navigate]);
 
   // --- LIVE VALIDATION FUNCTIONS ---
   const validateEmail = (email) => {
@@ -342,6 +362,32 @@ export default function AuthPage() {
     }
   };
 
+  const handleGitHubAuth = async () => {
+    const githubClientId = import.meta.env.VITE_GITHUB_CLIENT_ID;
+    const githubRedirectUri = import.meta.env.VITE_GITHUB_REDIRECT_URI;
+
+    if (!githubClientId || !githubRedirectUri) {
+      setError("GitHub OAuth credentials not configured.");
+      return;
+    }
+
+    const state = Math.random().toString(36).substring(7);
+    sessionStorage.setItem("github_oauth_state", state);
+
+    const authUrl = `https://github.com/login/oauth/authorize?client_id=${githubClientId}&redirect_uri=${encodeURIComponent(githubRedirectUri)}&scope=read:user,user:email&state=${state}`;
+
+    const width = 500;
+    const height = 600;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+
+    window.open(
+      authUrl,
+      "github_auth",
+      `width=${width},height=${height},left=${left},top=${top},scrollbars=yes`,
+    );
+  };
+
   return (
     <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center p-4 font-sans selection:bg-cyan-500/30 relative overflow-hidden">
       {/* --- Animated Background --- */}
@@ -472,6 +518,8 @@ export default function AuthPage() {
               </button>
               <button
                 type="button"
+                onClick={handleGitHubAuth}
+                disabled={isAuthAttempting}
                 className="group relative p-3 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:border-cyan-500/50 transition-all duration-300 overflow-hidden"
               >
                 <div className="absolute inset-0 bg-cyan-500/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
@@ -751,6 +799,8 @@ export default function AuthPage() {
               </button>
               <button
                 type="button"
+                onClick={handleGitHubAuth}
+                disabled={isAuthAttempting}
                 className="group relative p-3 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:border-violet-500/50 transition-all duration-300 overflow-hidden"
               >
                 <div className="absolute inset-0 bg-violet-500/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />

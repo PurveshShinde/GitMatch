@@ -10,6 +10,7 @@ import ResendVerification from "./pages/ResendVerification";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import Onboarding from "./components/OnBoarding";
+import GitHubCallback from "./pages/GitHubCallback";
 
 // Error and Layout Infrastructure
 import ErrorBoundary from "./components/common/ErrorBoundary";
@@ -61,6 +62,7 @@ function App() {
         <Route path="/resend-verification" element={<ResendVerification />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/auth/github/callback" element={<GitHubCallback />} />
 
         {/* Protected routes */}
         <Route

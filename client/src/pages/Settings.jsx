@@ -31,6 +31,24 @@ import {
   Unlink,
 } from "lucide-react";
 
+// Simple Icon component for header
+const SettingsIcon = (props) => (
+  <svg {...props} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37.996.608 2.296.07 2.572-1.065z"
+    />
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+    />
+  </svg>
+);
+
 // --- REDUX & API ---
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
@@ -236,7 +254,9 @@ const Settings = () => {
         username: currentUser.username || "",
         email: currentUser.email || "",
         bio: onboardingData.bio || "",
-        timezone: onboardingData.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+        timezone:
+          onboardingData.timezone ||
+          Intl.DateTimeFormat().resolvedOptions().timeZone,
         workHours: onboardingData.workHours || "09:00 - 17:00",
         skills: Array.isArray(onboardingData.coreSkills)
           ? onboardingData.coreSkills.join(", ")
@@ -306,11 +326,13 @@ const Settings = () => {
       const popup = window.open(
         authUrl,
         "github_auth",
-        `width=${width},height=${height},left=${left},top=${top},scrollbars=yes`
+        `width=${width},height=${height},left=${left},top=${top},scrollbars=yes`,
       );
 
       if (!popup) {
-        alert("Failed to open authorization popup. Please check your popup blocker settings.");
+        alert(
+          "Failed to open authorization popup. Please check your popup blocker settings.",
+        );
         setLinkingGitHub(false);
         return;
       }
@@ -372,7 +394,9 @@ const Settings = () => {
         githubConnected: true,
       }));
 
-      alert(`Successfully connected GitHub account: ${data.user?.githubUsername}`);
+      alert(
+        `Successfully connected GitHub account: ${data.user?.githubUsername}`,
+      );
     } catch (error) {
       console.error("GitHub auth error:", error);
       alert(`Failed to connect GitHub: ${error.message}`);
@@ -634,7 +658,7 @@ const Settings = () => {
                 </h4>
                 <p className="text-xs text-slate-500 mt-1">
                   {formData.githubConnected
-                    ? `Connected as ${formData.username}`
+                    ? `Connected as ${currentUser.githubUsername || formData.username}`
                     : "Not connected"}
                 </p>
               </div>
@@ -669,9 +693,10 @@ const Settings = () => {
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
                   Password
                 </label>
-                <button 
+                <button
                   onClick={handlePasswordReset}
-                  className="w-full flex items-center justify-between bg-[#0a0a0f] border border-slate-800 rounded-lg px-4 py-2 text-sm text-slate-400 hover:text-white hover:border-slate-600 transition-all">
+                  className="w-full flex items-center justify-between bg-[#0a0a0f] border border-slate-800 rounded-lg px-4 py-2 text-sm text-slate-400 hover:text-white hover:border-slate-600 transition-all"
+                >
                   <span>••••••••••••</span>
                   <span className="text-xs text-blue-400">Send Reset Link</span>
                 </button>
@@ -731,7 +756,7 @@ const Settings = () => {
                       (s, i) =>
                         s.trim() && (
                           <Badge key={i} text={s.trim()} color="blue" />
-                        )
+                        ),
                     )}
               </div>
             </div>
@@ -994,22 +1019,6 @@ const Settings = () => {
   );
 };
 
-// Simple Icon component for header
-const SettingsIcon = (props) => (
-  <svg {...props} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37.996.608 2.296.07 2.572-1.065z"
-    />
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-    />
-  </svg>
-);
+
 
 export default Settings;

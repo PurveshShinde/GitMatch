@@ -17,8 +17,9 @@ export const useChat = (activeChatUser, currentUser, token, socketReady, socket)
       setPeerUser(null);
       setMessages([]);
       
+      let user = null;
       try {
-        const user = await resolvePeerUser(activeChatUser.login, token);
+        user = await resolvePeerUser(activeChatUser.login, token);
         setPeerUser(user);
       } catch (e) {
         console.error("[Chat] Error resolving user:", e);
@@ -39,8 +40,17 @@ export const useChat = (activeChatUser, currentUser, token, socketReady, socket)
       return;
     }
 
-    const myId = currentUser._id || currentUser.uid;
-    const chatId = [myId, peerUser.uid].sort().join("_");
+    const myId = (currentUser?._id || currentUser?.uid)?.toString();
+    const peerId = (peerUser?.uid || peerUser?._id)?.toString();
+
+    if (!myId || !peerId) {
+      console.warn("[Chat] Missing IDs for chatId generation:", { myId, peerId });
+      setLoadingChat(false);
+      return;
+    }
+
+    const chatId = [myId, peerId].sort().join("_");
+    console.log("[Chat] Joining room:", chatId);
     activeChatIdRef.current = chatId;
 
     // Join room
@@ -80,8 +90,9 @@ export const useChat = (activeChatUser, currentUser, token, socketReady, socket)
   const sendMessage = useCallback((text) => {
     if (!text.trim() || !peerUser || peerUser.isVirtual || !socket?.connected) return false;
 
-    const myId = currentUser._id || currentUser.uid;
-    const chatId = [myId, peerUser.uid].sort().join("_");
+    const myId = (currentUser?._id || currentUser?.uid)?.toString();
+    const peerId = (peerUser?.uid || peerUser?._id)?.toString();
+    const chatId = [myId, peerId].sort().join("_");
     socket.emit("sendMessage", { chatId, text: text.trim() });
     
     return true; // Success, caller can clear input

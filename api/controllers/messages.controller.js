@@ -17,7 +17,11 @@ export const getMessages = async (req, res, next) => {
     }
 
     // Verify the requesting user is one of the two participants
-    if (!participantIds.includes(req.user.id)) {
+    const userId = req.user.id.toString();
+    const isParticipant = participantIds.some(id => id.toString() === userId);
+
+    if (!isParticipant) {
+      console.error(`[GET-MESSAGES] Access Denied. User ID: "${userId}", Participants: [${participantIds.map(id => `"${id}"`).join(", ")}]`);
       return next(errorHandler(403, "Access denied: you are not a participant in this chat."));
     }
 
