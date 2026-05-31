@@ -41,11 +41,18 @@ export const ChatWindow = React.memo(({ activeChat, currentUser, token }) => {
     <>
       <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-[#0f111a]">
         <div className="flex items-center gap-3">
-          <img
-            src={activeChat.avatar_url}
-            className="w-8 h-8 rounded-full"
-            alt=""
-          />
+          <div className="flex items-center gap-2">
+            {!socketReady ? (
+              <span className="flex h-2 w-2 rounded-full bg-red-500 animate-pulse" title="Disconnected" />
+            ) : (
+              <span className="flex h-2 w-2 rounded-full bg-green-500" title="Connected" />
+            )}
+            <img
+              src={activeChat.avatar_url}
+              className="w-8 h-8 rounded-full"
+              alt=""
+            />
+          </div>
           <div>
             <div className="font-bold text-white text-sm">
               {activeChat.login}

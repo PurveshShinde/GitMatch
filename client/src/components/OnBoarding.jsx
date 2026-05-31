@@ -32,7 +32,7 @@ export default function Onboarding() {
     if (!currentUser) {
       navigate("/auth");
     } else if (currentUser.isOnboarded) {
-      navigate("/Dashboard");
+      navigate("/dashboard");
     }
   }, [currentUser, navigate]);
 
@@ -62,7 +62,10 @@ export default function Onboarding() {
     workStyle: "",
   };
 
-  const [formData, setFormData] = useState(initialData);
+  const [formData, setFormData] = useState({
+    ...initialData,
+    githubUsername: currentUser?.githubUsername || "",
+  });
 
   const options = {
     accountType: ["Student", "Professional", "Freelancer", "Hobbyist"],
@@ -362,7 +365,7 @@ export default function Onboarding() {
         if (data.user) {
           dispatch(updateUser(data.user));
         }
-        navigate("/Dashboard");
+        navigate("/dashboard");
       } else {
         setError(data.message || "Failed to save profile. Please try again.");
       }

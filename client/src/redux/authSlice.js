@@ -89,6 +89,30 @@ export const googleAuthUser = createAsyncThunk(
   }
 );
 
+export const githubAuthUser = createAsyncThunk(
+  "auth/githubAuthUser",
+  async ({ code }, { rejectWithValue }) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/github`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ code }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return rejectWithValue(data.message || "GitHub auth failed");
+      }
+
+      return data;
+    } catch (error) {
+      return rejectWithValue(error.message || "Network error");
+    }
+  }
+);
+
 export const resendVerificationEmail = createAsyncThunk(
   "auth/resendVerificationEmail",
   async (email, { rejectWithValue }) => {
@@ -258,6 +282,20 @@ const authSlice = createSlice({
       .addCase(googleAuthUser.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload || "Google auth failed";
+      })
+      // GitHub Auth
+      .addCase(githubAuthUser.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(githubAuthUser.fulfilled, (state, action) => {
+        state.loading = false;
+        state.currentUser = action.payload.user;
+        state.token = action.payload.token || null;
+      })
+      .addCase(githubAuthUser.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload || "GitHub auth failed";
       })
       // Forgot Password
       .addCase(forgotPassword.pending, (state) => {

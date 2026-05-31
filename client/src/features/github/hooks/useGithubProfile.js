@@ -19,7 +19,7 @@ export const useGithubProfile = (currentUser) => {
         const onboarding = currentUser.onboardingData || {};
         const baseProfile = {
           displayName: currentUser.username || "Developer",
-          githubUsername: onboarding.githubUsername || "",
+          githubUsername: currentUser.githubUsername || onboarding.githubUsername || "",
           experienceYears: onboarding.experienceYears || "0-1",
           weeklyAvailability: onboarding.weeklyAvailability || "10-20",
           primaryLanguage: onboarding.primaryLanguage || "JavaScript",

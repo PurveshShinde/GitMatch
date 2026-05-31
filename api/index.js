@@ -111,7 +111,14 @@ io.on("connection", (socket) => {
 
     // Security: sender must be one of the two participants
     const participantIds = chatId.split("_");
-    if (!participantIds.includes(socket.data.userId)) return;
+    const userId = socket.data.userId.toString();
+    
+    console.log(`[SOCKET] sendMessage attempt. User: ${userId}, Room: ${chatId}`);
+
+    if (!participantIds.some(id => id.toString() === userId)) {
+      console.warn(`[SOCKET] Permission denied for sendMessage. User ${userId} is not in participants:`, participantIds);
+      return;
+    }
 
     try {
       // Lazy-load sender name from DB (cached after first message per session)
@@ -128,6 +135,8 @@ io.on("connection", (socket) => {
         senderName: socket.data.senderName,
         text: text.trim(),
       });
+
+      console.log(`[SOCKET] Message saved. ID: ${message._id}, Room: ${chatId}`);
 
       // Broadcast to everyone in room (including sender) for consistent state
       io.to(chatId).emit("newMessage", {

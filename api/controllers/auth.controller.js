@@ -24,6 +24,10 @@ const sanitizeUser = (user) => {
   delete userObject.emailVerificationExpires;
   delete userObject.passwordResetToken;
   delete userObject.passwordResetExpires;
+  
+  // Ensure critical fields are always present
+  userObject.isOnboarded = user.isOnboarded;
+  
   return userObject;
 };
 
@@ -178,6 +182,10 @@ export const signin = async (req, res, next) => {
       });
     }
 
+    if (!user.isOnboarded) {
+      user.isOnboarded = true;
+      await user.save();
+    }
     const token = generateToken(user._id);
     const sanitizedUser = sanitizeUser(user);
 
@@ -206,14 +214,16 @@ export const googleAuth = async (req, res, next) => {
     let user = await User.findOne({ email: email.toLowerCase() });
 
     if (user) {
-      // Existing user — just log them in
+      if (!user.isOnboarded) {
+        user.isOnboarded = true;
+        await user.save();
+      }
       const token = generateToken(user._id);
       const sanitizedUser = sanitizeUser(user);
       setTokenCookie(res, token);
-
       return res.status(200).json({
         success: true,
-        message: "signin successful",
+        message: "Sign in successful",
         token,
         user: sanitizedUser,
       });
@@ -232,11 +242,20 @@ export const googleAuth = async (req, res, next) => {
 
     user = await User.create({
       username: sanitizedUsername,
+      displayName: username || sanitizedUsername,
       email: email.toLowerCase(),
       password: generatedPassword,
       avatar: avatar || "",
       authProvider: "google",
       isEmailVerified: true,
+      isOnboarded: true,
+      onboardingData: {
+        bio: "",
+        skills: "",
+        role: "Developer",
+        experience: "1-3 Years",
+        availability: "Open to collaborate",
+      },
     });
 
     const token = generateToken(user._id);
@@ -295,15 +314,90 @@ export const githubAuth = async (req, res, next) => {
     });
 
     const githubUser = await userResponse.json();
+    console.log("[GITHUB-AUTH] GitHub user data received:", githubUser.login, githubUser.email);
 
     if (!githubUser.login) {
+      console.error("[GITHUB-AUTH] No login found in GitHub response");
       return next(errorHandler(400, "Failed to get GitHub user info"));
     }
 
-    let user = await User.findOne({ email: githubUser.email?.toLowerCase() });
+    // --- CASE 1: USER IS ALREADY LOGGED IN (Linking) ---
+    const existingToken = req.cookies?.access_token;
+    let authenticatedUserId = null;
+    if (existingToken) {
+      try {
+        const decoded = jwt.verify(existingToken, process.env.JWT_SECRET);
+        authenticatedUserId = decoded.id;
+        console.log("[GITHUB-AUTH] Found authenticated user ID:", authenticatedUserId);
+      } catch (err) {
+        console.warn("[GITHUB-AUTH] Invalid existing token:", err.message);
+      }
+    }
+
+    if (authenticatedUserId) {
+      const currentUser = await User.findById(authenticatedUserId);
+      if (currentUser) {
+        console.log("[GITHUB-AUTH] Linking to current user:", currentUser.username);
+        currentUser.githubUsername = githubUser.login;
+        currentUser.githubLinkedAccounts = {
+          ...currentUser.githubLinkedAccounts,
+          github: true,
+        };
+        currentUser.isOnboarded = true; // Ensure they stay onboarded
+        
+        if (!currentUser.avatar && githubUser.avatar_url) {
+          currentUser.avatar = githubUser.avatar_url;
+        }
+        await currentUser.save();
+
+        const token = generateToken(currentUser._id);
+        setTokenCookie(res, token);
+
+        return res.status(200).json({
+          success: true,
+          message: "GitHub account linked successfully",
+          token,
+          user: sanitizeUser(currentUser),
+        });
+      }
+    }
+
+    // --- CASE 2: GUEST LOGIN/SIGNUP ---
+    let user = await User.findOne({
+      $or: [
+        { githubUsername: githubUser.login },
+        { "onboardingData.githubUsername": githubUser.login },
+        ...(githubUser.email ? [{ email: githubUser.email.toLowerCase() }] : []),
+      ],
+    });
 
     if (user) {
-      // Existing user — just log them in
+      console.log("[GITHUB-AUTH] Found existing guest user:", user.username);
+      let needsUpdate = false;
+      if (!user.githubUsername) {
+        user.githubUsername = githubUser.login;
+        needsUpdate = true;
+      }
+      if (!user.githubLinkedAccounts?.github) {
+        user.githubLinkedAccounts = {
+          ...user.githubLinkedAccounts,
+          github: true,
+        };
+        needsUpdate = true;
+      }
+      if (!user.isOnboarded) {
+        user.isOnboarded = true;
+        needsUpdate = true;
+      }
+      if (!user.avatar && githubUser.avatar_url) {
+        user.avatar = githubUser.avatar_url;
+        needsUpdate = true;
+      }
+
+      if (needsUpdate) {
+        await user.save();
+      }
+
       const token = generateToken(user._id);
       const sanitizedUser = sanitizeUser(user);
       setTokenCookie(res, token);
@@ -316,14 +410,21 @@ export const githubAuth = async (req, res, next) => {
       });
     }
 
-    // New user — create account (auto-verified)
+    console.log("[GITHUB-AUTH] Creating new user for:", githubUser.login);
     const sanitizedUsername = githubUser.login
       .replace(/[^a-zA-Z0-9]/g, "")
       .toLowerCase()
       .slice(0, 20);
 
+    let finalUsername = sanitizedUsername;
+    const existingUsername = await User.findOne({ username: finalUsername });
+    if (existingUsername) {
+      finalUsername = `${sanitizedUsername}${Math.random().toString(36).slice(-4)}`;
+    }
+
     user = await User.create({
-      username: sanitizedUsername,
+      username: finalUsername,
+      displayName: githubUser.name || githubUser.login,
       email:
         githubUser.email?.toLowerCase() || `${githubUser.login}@github.local`,
       password:
@@ -333,6 +434,16 @@ export const githubAuth = async (req, res, next) => {
       authProvider: "github",
       isEmailVerified: !!githubUser.email,
       githubUsername: githubUser.login,
+      githubLinkedAccounts: { github: true },
+      isOnboarded: true, 
+      onboardingData: {
+        bio: githubUser.bio || "",
+        githubUsername: githubUser.login,
+        skills: "",
+        role: "Developer",
+        experience: "1-3 Years",
+        availability: "Open to collaborate",
+      },
     });
 
     const token = generateToken(user._id);

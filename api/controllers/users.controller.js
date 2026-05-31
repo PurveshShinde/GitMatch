@@ -84,9 +84,10 @@ export const lookupUser = async (req, res, next) => {
     }
 
     const user = await User.findOne({
-      "onboardingData.githubUsername": {
-        $regex: new RegExp(`^${githubUsername.trim()}$`, "i"),
-      },
+      $or: [
+        { githubUsername: { $regex: new RegExp(`^${githubUsername.trim()}$`, "i") } },
+        { "onboardingData.githubUsername": { $regex: new RegExp(`^${githubUsername.trim()}$`, "i") } }
+      ]
     })
       .select("_id username onboardingData")
       .lean();
