@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
 import {
   // ... (Lucide Icons remain the same) ...
   Github,
@@ -28,9 +29,14 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { getDoc, doc } from "firebase/firestore";
 // --- END IMPORT ---
 
+import { logout } from "../redux/authSlice";
+
 // Define appId for profile fetching (assuming it's still needed outside the firebase module)
 const appId =
   typeof __app_id !== "undefined" ? __app_id : "gitmatch-production";
+
+const API_BASE_URL =
+  import.meta.env?.VITE_API_BASE_URL || "http://localhost:3000";
 
 // --- 1. CUSTOM AUTH HOOK ---
 const useAuthAndProfile = () => {
@@ -266,12 +272,31 @@ const HomePage = () => {
 
   // *** USE AUTH HOOK ***
   const { user, profile, loading } = useAuthAndProfile();
-
-  const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const { currentUser: reduxUser, token } = useSelector((state) => state.auth);
 
   const handleLogout = async () => {
-    if (auth) await signOut(auth);
-    setMobileMenuOpen(false);
+    try {
+      if (auth?.currentUser) {
+        await signOut(auth);
+      }
+
+      if (reduxUser) {
+        await fetch(`${API_BASE_URL}/api/auth/signout`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          credentials: "include",
+        });
+        dispatch(logout());
+      }
+    } catch (error) {
+      console.error("Error signing out", error);
+    } finally {
+      setMobileMenuOpen(false);
+    }
   };
 
   // --- UI EFFECTS (Scroll/Mouse) ---
@@ -293,18 +318,25 @@ const HomePage = () => {
   }, []);
 
   // Helper to get display name/avatar
+  const effectiveUser = user || reduxUser;
+  const isAuthenticated = Boolean(effectiveUser);
+
   const displayName =
     profile?.githubUsername ||
-    user?.email?.split("@")[0] ||
-    user?.displayName ||
+    effectiveUser?.githubUsername ||
+    effectiveUser?.displayName ||
+    effectiveUser?.username ||
+    effectiveUser?.email?.split("@")[0] ||
     "Developer";
 
   const avatarUrl = profile?.githubUsername
     ? `https://github.com/${profile.githubUsername}.png`
-    : user?.photoURL || "https://github.com/ghost.png";
+    : effectiveUser?.avatar ||
+      effectiveUser?.photoURL ||
+      "https://github.com/ghost.png";
 
   // Added Loading State for better UX
-  if (loading) {
+  if (loading && !reduxUser) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#050508] text-white">
         <Loader2 className="w-8 h-8 animate-spin text-blue-500 mb-4" />
@@ -368,7 +400,7 @@ const HomePage = () => {
               ))}
 
               <div className="flex items-center gap-3 ml-4 border-l border-slate-800 pl-6">
-                {user ? (
+                {isAuthenticated ? (
                   // AUTHENTICATED STATE (DESKTOP)
                   <div className="flex items-center gap-4">
                     <Link
@@ -441,7 +473,7 @@ const HomePage = () => {
         {mobileMenuOpen && (
           <div className="md:hidden bg-[#0a0a0f] border-b border-slate-800 absolute w-full shadow-2xl animate-slide-down">
             <div className="p-4 space-y-3">
-              {user ? (
+              {isAuthenticated ? (
                 // AUTHENTICATED STATE (MOBILE)
                 <>
                   <div className="flex items-center gap-3 pb-4 border-b border-slate-800/50">
@@ -455,7 +487,7 @@ const HomePage = () => {
                         {displayName}
                       </div>
                       <div className="text-xs text-slate-500">
-                        {user.email || "Logged In"}
+                        {effectiveUser?.email || "Logged In"}
                       </div>
                     </div>
                   </div>
@@ -531,7 +563,7 @@ const HomePage = () => {
               </p>
 
               <div className="flex flex-wrap gap-4">
-                {user ? (
+                {isAuthenticated ? (
                   <RippleButton
                     to="/dashboard"
                     variant="primary"
@@ -713,7 +745,7 @@ const HomePage = () => {
             Join the network of developers building the future.
           </p>
           <div className="flex flex-col sm:flex-row justify-center gap-4">
-            {user ? (
+            {isAuthenticated ? (
               <RippleButton
                 to="/dashboard"
                 variant="primary"
