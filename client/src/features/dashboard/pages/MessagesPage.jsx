@@ -3,6 +3,7 @@ import { useSelector } from "react-redux";
 import { useGithubProfile } from "../../github/hooks/useGithubProfile";
 import { useGithubNetwork } from "../../github/hooks/useGithubNetwork";
 import { ChatWindow } from "../../chat/components/ChatWindow";
+import GithubAuthRequired from "../../../components/common/GithubAuthRequired";
 
 const MessagesPage = () => {
   const { currentUser, token } = useSelector((state) => state.auth);
@@ -24,8 +25,9 @@ const MessagesPage = () => {
   const chatUser = currentUser ? { uid: currentUser._id, ...currentUser } : null;
 
   return (
-    <div className="h-[calc(100vh-140px)] bg-[#0f111a] border border-slate-800 rounded-xl overflow-hidden flex animate-in fade-in zoom-in-95 duration-300">
-      {/* Sidebar */}
+    <GithubAuthRequired title="Messages Locked">
+      <div className="h-[calc(100vh-140px)] bg-[#0f111a] border border-slate-800 rounded-xl overflow-hidden flex animate-in fade-in zoom-in-95 duration-300">
+        {/* Sidebar */}
       <div className="w-80 border-r border-slate-800 flex flex-col hidden md:flex">
         <div className="p-4 border-b border-slate-800">
           <h3 className="font-bold text-white mb-4">Messages</h3>
@@ -77,6 +79,7 @@ const MessagesPage = () => {
         />
       </div>
     </div>
+    </GithubAuthRequired>
   );
 };
 

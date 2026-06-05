@@ -126,6 +126,7 @@ const InputGroup = ({
   placeholder,
   icon: Icon,
   helpText,
+  disabled = false,
   extraContent = null,
 }) => (
   <div className="space-y-2">
@@ -142,9 +143,10 @@ const InputGroup = ({
           value={value || ""}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
+          disabled={disabled}
           className={`w-full bg-[#0a0a0f] border border-slate-800 rounded-lg py-2 text-sm text-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 outline-none transition-all ${
             Icon ? "pl-10" : "px-4"
-          }`}
+          } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
         />
       </div>
       {extraContent}
@@ -251,7 +253,7 @@ const Settings = () => {
       setFormData((prev) => ({
         ...prev,
         displayName: currentUser.displayName || currentUser.username || "",
-        username: currentUser.username || "",
+        username: currentUser.githubUsername || currentUser.username || "",
         email: currentUser.email || "",
         bio: onboardingData.bio || "",
         timezone:
@@ -603,15 +605,16 @@ const Settings = () => {
             />
             <InputGroup
               label="Username / Handle"
-              value={formData.username}
+              value={formData.githubConnected ? currentUser.githubUsername : formData.username}
               onChange={(v) => handleChange("username", v)}
+              disabled={formData.githubConnected}
               icon={Terminal}
               placeholder="@username"
-              helpText="Enter your GitHub username to fetch your avatar."
+              helpText={formData.githubConnected ? "Username is synced with your GitHub account." : "Enter your GitHub username to fetch your avatar."}
               extraContent={
                 <div className="shrink-0">
                   <img
-                    src={githubAvatar(formData.username)}
+                    src={githubAvatar(formData.githubConnected ? currentUser.githubUsername : formData.username)}
                     alt="Avatar"
                     className="w-10 h-10 rounded-lg border border-slate-700 bg-slate-900 object-cover"
                   />

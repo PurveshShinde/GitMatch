@@ -2,6 +2,7 @@ import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import User from "../models/user.model.js";
 import { errorHandler } from "../utils/error.js";
+import { refreshUserGithubStats } from "../services/githubStats.service.js";
 import {
   sendVerificationEmail,
   sendPasswordResetEmail,
@@ -340,14 +341,17 @@ export const githubAuth = async (req, res, next) => {
         }
         await currentUser.save();
 
-        const token = generateToken(currentUser._id);
+        const syncedUser = await refreshUserGithubStats(currentUser._id);
+        const finalUser = syncedUser || currentUser;
+
+        const token = generateToken(finalUser._id);
         setTokenCookie(res, token);
 
         return res.status(200).json({
           success: true,
           message: "GitHub account linked successfully",
           token,
-          user: sanitizeUser(currentUser),
+          user: sanitizeUser(finalUser),
         });
       }
     }
@@ -384,8 +388,11 @@ export const githubAuth = async (req, res, next) => {
         await user.save();
       }
 
-      const token = generateToken(user._id);
-      const sanitizedUser = sanitizeUser(user);
+      const syncedUser = await refreshUserGithubStats(user._id);
+      const finalUser = syncedUser || user;
+
+      const token = generateToken(finalUser._id);
+      const sanitizedUser = sanitizeUser(finalUser);
       setTokenCookie(res, token);
 
       return res.status(200).json({
@@ -432,8 +439,11 @@ export const githubAuth = async (req, res, next) => {
       },
     });
 
-    const token = generateToken(user._id);
-    const sanitizedUser = sanitizeUser(user);
+    const syncedUser = await refreshUserGithubStats(user._id);
+    const finalUser = syncedUser || user;
+
+    const token = generateToken(finalUser._id);
+    const sanitizedUser = sanitizeUser(finalUser);
     setTokenCookie(res, token);
 
     return res.status(201).json({

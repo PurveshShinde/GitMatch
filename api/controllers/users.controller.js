@@ -10,6 +10,7 @@
 
 import User from "../models/user.model.js";
 import { errorHandler } from "../utils/error.js";
+import { refreshUserGithubStats } from "../services/githubStats.service.js";
 
 const sanitizeUser = (user) => {
   const userObject = user.toObject();
@@ -172,6 +173,79 @@ export const unlinkGithub = async (req, res, next) => {
       success: true,
       message: "GitHub account unlinked successfully",
       user: sanitizeUser(user),
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+/**
+ * GET /api/users/community
+ * Returns all GitMatch users with a linked githubUsername, sorted by level/XP descending.
+ */
+export const getCommunityUsers = async (req, res, next) => {
+  try {
+    const users = await User.find({
+      $or: [
+        { githubUsername: { $ne: "" } },
+        { "githubLinkedAccounts.github": true }
+      ]
+    })
+      .select("username displayName avatar githubUsername githubStats createdAt")
+      .lean();
+
+    const enrichedUsers = users.map(user => {
+      const stats = user.githubStats || {
+        level: 1,
+        xp: 0,
+        nextLevelXp: 200,
+        publicRepos: 0,
+        followers: 0,
+        totalStars: 0
+      };
+      return {
+        _id: user._id,
+        username: user.username,
+        displayName: user.displayName || user.username,
+        avatar: user.avatar,
+        githubUsername: user.githubUsername,
+        githubStats: stats
+      };
+    });
+
+    enrichedUsers.sort((a, b) => {
+      if ((b.githubStats?.level || 1) !== (a.githubStats?.level || 1)) {
+        return (b.githubStats?.level || 1) - (a.githubStats?.level || 1);
+      }
+      return (b.githubStats?.xp || 0) - (a.githubStats?.xp || 0);
+    });
+
+    return res.status(200).json({
+      success: true,
+      users: enrichedUsers
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+/**
+ * POST /api/users/sync-github
+ * Manually trigger refresh of logged-in user's GitHub stats.
+ */
+export const syncGithubStats = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const updatedUser = await refreshUserGithubStats(userId);
+    
+    if (!updatedUser) {
+      return next(errorHandler(400, "Failed to sync GitHub stats"));
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "GitHub stats synced successfully",
+      user: sanitizeUser(updatedUser)
     });
   } catch (error) {
     return next(error);

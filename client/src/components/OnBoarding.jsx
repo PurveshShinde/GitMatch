@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import { setOnboarded, updateUser } from "../redux/authSlice.js";
+import { setOnboarded, updateUser, githubAuthUser } from "../redux/authSlice.js";
 import {
   Briefcase,
   Clock,
@@ -17,6 +17,7 @@ import {
   Activity,
   Layers,
   Zap,
+  Github,
 } from "lucide-react";
 
 const API_BASE_URL =
@@ -40,7 +41,7 @@ export default function Onboarding() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
-  const totalSteps = 6;
+  const totalSteps = 7;
 
   // Initial Form Data
   const initialData = {
@@ -62,10 +63,7 @@ export default function Onboarding() {
     workStyle: "",
   };
 
-  const [formData, setFormData] = useState({
-    ...initialData,
-    githubUsername: currentUser?.githubUsername || "",
-  });
+  const [formData, setFormData] = useState(initialData);
 
   const options = {
     accountType: ["Student", "Professional", "Freelancer", "Hobbyist"],
@@ -212,6 +210,54 @@ export default function Onboarding() {
     );
   };
 
+  const [isLinkingGithub, setIsLinkingGithub] = useState(false);
+
+  const handleGitHubAuth = async () => {
+    const githubClientId = import.meta.env.VITE_GITHUB_CLIENT_ID;
+    const githubRedirectUri = import.meta.env.VITE_GITHUB_REDIRECT_URI;
+
+    if (!githubClientId || !githubRedirectUri) {
+      setError("GitHub OAuth credentials not configured.");
+      return;
+    }
+
+    const state =
+      Math.random().toString(36).substring(2, 15) +
+      Math.random().toString(36).substring(2, 15);
+    sessionStorage.setItem("github_oauth_state", state);
+
+    const authUrl = `https://github.com/login/oauth/authorize?client_id=${githubClientId}&redirect_uri=${encodeURIComponent(githubRedirectUri)}&scope=read:user,user:email&state=${state}`;
+
+    window.open(
+      authUrl,
+      "github_auth",
+      "width=500,height=600,menubar=no,toolbar=no,location=no,status=no"
+    );
+  };
+
+  useEffect(() => {
+    const handleMessage = async (event) => {
+      if (event.origin !== window.location.origin) return;
+
+      if (event.data?.type === "github_auth_complete" && event.data?.code) {
+        setIsLinkingGithub(true);
+        setError(null);
+        try {
+          await dispatch(
+            githubAuthUser({ code: event.data.code })
+          ).unwrap();
+        } catch (err) {
+          setError(err || "GitHub verification failed.");
+        } finally {
+          setIsLinkingGithub(false);
+        }
+      }
+    };
+
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [dispatch]);
+
   // Handlers
   const handleNext = () => {
     setError(null);
@@ -342,10 +388,8 @@ export default function Onboarding() {
     setIsSubmitting(true);
 
     try {
-      // Trim GitHub username if provided
       const dataToSubmit = {
         ...formData,
-        githubUsername: formData.githubUsername.trim(),
       };
 
       const response = await fetch(`${API_BASE_URL}/api/auth/onboarding`, {
@@ -365,7 +409,7 @@ export default function Onboarding() {
         if (data.user) {
           dispatch(updateUser(data.user));
         }
-        navigate("/dashboard");
+        navigate("/skill-test");
       } else {
         setError(data.message || "Failed to save profile. Please try again.");
       }
@@ -488,27 +532,6 @@ export default function Onboarding() {
             <p className="text-slate-400 text-sm">
               How you interact with open source.
             </p>
-
-            <div>
-              <label className="text-slate-300 font-mono text-sm block mb-3">
-                GitHub Username:
-              </label>
-              <div className="relative">
-                <GitBranch className="absolute left-3 top-3.5 text-slate-500 w-5 h-5" />
-                <input
-                  type="text"
-                  value={formData.githubUsername}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      githubUsername: e.target.value,
-                    }))
-                  }
-                  className="w-full bg-slate-800 border border-slate-700 text-white px-10 py-3 rounded-lg focus:border-green-500 focus:ring-1 focus:ring-green-500"
-                  placeholder="Your GitHub Handle"
-                />
-              </div>
-            </div>
 
             <div>
               <label className="text-slate-300 font-mono text-sm block mb-3">
@@ -710,6 +733,50 @@ export default function Onboarding() {
               <div className="p-3 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono text-sm">
                 {formData.timezone}
               </div>
+            </div>
+          </div>
+        );
+
+      case 7:
+        return (
+          <div className="space-y-8">
+            <h2 className="text-2xl font-bold text-white font-mono flex items-center gap-3">
+              <Github className="w-6 h-6 text-slate-400" />
+              7. Verify GitHub Identity
+            </h2>
+            <p className="text-slate-400 text-sm">
+              Link your GitHub account to access personalized issue recommendations and messaging. You can skip this and do it later in Settings.
+            </p>
+
+            <div className="p-6 bg-slate-800/50 border border-slate-700 rounded-xl text-center">
+              {currentUser?.githubUsername ? (
+                <div className="flex flex-col items-center gap-3">
+                  <div className="w-16 h-16 bg-green-900/30 rounded-full flex items-center justify-center border border-green-500">
+                    <CheckCircle className="w-8 h-8 text-green-500" />
+                  </div>
+                  <h3 className="text-lg font-mono text-white">Verified!</h3>
+                  <p className="text-slate-400">Linked as <strong className="text-blue-400">{currentUser.githubUsername}</strong></p>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-4">
+                  <Github className="w-12 h-12 text-slate-500" />
+                  <p className="text-sm text-slate-300 max-w-md">
+                    We use OAuth to securely verify your identity. We never get access to your code or password.
+                  </p>
+                  <button
+                    onClick={handleGitHubAuth}
+                    disabled={isLinkingGithub}
+                    className="mt-2 flex items-center gap-3 bg-[#2ea043] hover:bg-[#2c974b] text-white px-6 py-3 rounded-lg font-mono font-bold transition-all disabled:opacity-50"
+                  >
+                    {isLinkingGithub ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <Github className="w-5 h-5" />
+                    )}
+                    Verify with GitHub
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         );
