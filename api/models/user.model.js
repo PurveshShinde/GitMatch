@@ -84,6 +84,18 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    githubStats: {
+      publicRepos: { type: Number, default: 0 },
+      followers: { type: Number, default: 0 },
+      publicGists: { type: Number, default: 0 },
+      totalStars: { type: Number, default: 0 },
+      accountAgeYears: { type: Number, default: 0 },
+      recentEventsCount: { type: Number, default: 0 },
+      level: { type: Number, default: 1 },
+      xp: { type: Number, default: 0 },
+      nextLevelXp: { type: Number, default: 200 },
+      updatedAt: { type: Date, default: null },
+    },
   },
   { timestamps: true },
 );

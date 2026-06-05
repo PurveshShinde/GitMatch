@@ -87,7 +87,23 @@ export const getGithubIssues = async (language = "javascript") => {
 export const calculateTrueLevel = (ghData) => {
   if (!ghData) return { level: 1, xp: 0, nextLevelXp: 200 };
   
-  const trueScore = 100 + (ghData.public_repos * 10) + (ghData.followers * 5) + (ghData.public_gists * 2);
+  const stars = ghData.totalStars || 0;
+  const age = ghData.accountAgeYears || 0;
+  const recentEvents = ghData.recentEventsCount || 0;
+  const repos = ghData.public_repos !== undefined ? ghData.public_repos : (ghData.publicRepos || 0);
+  const followers = ghData.followers !== undefined ? ghData.followers : 0;
+  const gists = ghData.public_gists !== undefined ? ghData.public_gists : (ghData.publicGists || 0);
+
+  const trueScore = Math.round(
+    100 +
+    (repos * 10) +
+    (followers * 5) +
+    (gists * 2) +
+    (stars * 15) +
+    (age * 25) +
+    (recentEvents * 3)
+  );
+  
   const trueLevel = Math.max(1, Math.floor(Math.sqrt(trueScore / 50)));
   
   return {

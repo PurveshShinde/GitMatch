@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { useSelector } from "react-redux";
+import { useNavigate } from "react-router-dom";
 import {
   ExternalLink,
   BookOpen,
@@ -21,6 +23,18 @@ import SkillTag from "./SkillTag.jsx";
  */
 export default function IssueCard({ data, onFeedback }) {
   const [showExplanation, setShowExplanation] = useState(false);
+  const { currentUser } = useSelector((state) => state.auth);
+  const navigate = useNavigate();
+
+  const handleAction = (actionCallback) => {
+    if (!currentUser?.githubUsername) {
+      if (window.confirm("You must link your GitHub account in Settings to use this feature. Go to Settings?")) {
+        navigate("/settings");
+      }
+      return;
+    }
+    actionCallback();
+  };
 
   const { issue, matchScore, explanation } = data;
 
@@ -265,10 +279,10 @@ export default function IssueCard({ data, onFeedback }) {
       {/* Bottom actions */}
       <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
         <button
-          onClick={() => {
+          onClick={() => handleAction(() => {
             onFeedback?.(issue.githubId, "open_github", matchScore?.overall);
             window.open(issue.htmlUrl, "_blank");
-          }}
+          })}
           style={{
             flex: 1,
             display: "flex",
@@ -293,7 +307,7 @@ export default function IssueCard({ data, onFeedback }) {
         </button>
 
         <button
-          onClick={() => onFeedback?.(issue.githubId, "save", matchScore?.overall)}
+          onClick={() => handleAction(() => onFeedback?.(issue.githubId, "save", matchScore?.overall))}
           title="Save for later"
           style={{
             display: "flex",
@@ -320,7 +334,7 @@ export default function IssueCard({ data, onFeedback }) {
         </button>
 
         <button
-          onClick={() => onFeedback?.(issue.githubId, "hide", matchScore?.overall)}
+          onClick={() => handleAction(() => onFeedback?.(issue.githubId, "hide", matchScore?.overall))}
           title="Not interested"
           style={{
             display: "flex",

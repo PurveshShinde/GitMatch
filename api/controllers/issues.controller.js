@@ -52,6 +52,14 @@ export const getRecommended = async (req, res, next) => {
 
 		// 4. Build user skill vector
 		const userVector = buildSkillVector(user.onboardingData);
+		
+		// Unverified users get unpersonalized issues sorted by newest
+		const isVerified = !!user.githubUsername;
+		if (!isVerified) {
+			userVector.skills = {};
+			filters.sort = "newest";
+			filters.minMatchScore = 0;
+		}
 
 		// 5. Build MongoDB query for pre-filtering
 		const mongoFilter = buildMongoFilter(filters, userVector);

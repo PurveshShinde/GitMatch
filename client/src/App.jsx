@@ -11,6 +11,8 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import Onboarding from "./components/OnBoarding";
 import GitHubCallback from "./pages/GitHubCallback";
+import SkillTest from "./pages/SkillTest";
+import GithubAuthRequired from "./components/common/GithubAuthRequired";
 
 // Error and Layout Infrastructure
 import ErrorBoundary from "./components/common/ErrorBoundary";
@@ -22,6 +24,7 @@ const IssuesPage = lazy(() => import("./features/dashboard/pages/IssuesPage"));
 const RepositoriesPage = lazy(() => import("./features/dashboard/pages/RepositoriesPage"));
 const NetworkPage = lazy(() => import("./features/dashboard/pages/NetworkPage"));
 const MessagesPage = lazy(() => import("./features/dashboard/pages/MessagesPage"));
+const CommunityPage = lazy(() => import("./features/dashboard/pages/CommunityPage"));
 
 // Protected Route - requires authentication
 function ProtectedRoute({ children }) {
@@ -74,6 +77,14 @@ function App() {
           }
         />
         <Route
+          path="/skill-test"
+          element={
+            <ProtectedRoute>
+              <SkillTest />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/settings"
           element={
             <OnboardedRoute>
@@ -98,6 +109,7 @@ function App() {
           <Route path="repos" element={<Suspense fallback={<PageFallback />}><RepositoriesPage /></Suspense>} />
           <Route path="network" element={<Suspense fallback={<PageFallback />}><NetworkPage /></Suspense>} />
           <Route path="messages" element={<Suspense fallback={<PageFallback />}><MessagesPage /></Suspense>} />
+          <Route path="community" element={<Suspense fallback={<PageFallback />}><GithubAuthRequired title="Community Locked"><CommunityPage /></GithubAuthRequired></Suspense>} />
         </Route>
       </Routes>
     </Router>

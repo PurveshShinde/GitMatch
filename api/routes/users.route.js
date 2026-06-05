@@ -4,6 +4,8 @@ import {
   lookupUser,
   updateProfile,
   unlinkGithub,
+  getCommunityUsers,
+  syncGithubStats,
 } from "../controllers/users.controller.js";
 import { protectRoute } from "../middleware/auth.middleware.js";
 
@@ -21,5 +23,11 @@ router.post("/update-profile", protectRoute, updateProfile);
 
 // POST /api/users/unlink-github
 router.post("/unlink-github", protectRoute, unlinkGithub);
+
+// GET /api/users/community
+router.get("/community", protectRoute, getCommunityUsers);
+
+// POST /api/users/sync-github
+router.post("/sync-github", protectRoute, syncGithubStats);
 
 export default router;

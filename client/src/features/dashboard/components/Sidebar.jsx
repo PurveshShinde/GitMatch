@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import {
   LayoutDashboard,
   Search,
@@ -10,6 +10,7 @@ import {
   Settings,
   LogOut,
   Terminal,
+  Trophy,
 } from "lucide-react";
 import { logout } from "../../../redux/authSlice";
 
@@ -20,6 +21,7 @@ const routes = [
   { name: "Find Issues", icon: Search, path: "/dashboard/issues" },
   { name: "Repositories", icon: FolderGit, path: "/dashboard/repos" },
   { name: "Network", icon: Users, path: "/dashboard/network" },
+  { name: "Community", icon: Trophy, path: "/dashboard/community" },
   { name: "Messages", icon: MessageSquare, path: "/dashboard/messages" },
 ];
 
@@ -27,6 +29,16 @@ export const Sidebar = ({ sidebarOpen, setSidebarOpen, token }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const dispatch = useDispatch();
+  const { currentUser } = useSelector((state) => state.auth);
+
+  const githubUsername = currentUser?.githubUsername || currentUser?.onboardingData?.githubUsername;
+
+  const visibleRoutes = routes.filter(route => {
+    if (route.path === "/dashboard/community") {
+      return !!githubUsername;
+    }
+    return true;
+  });
 
   const handleLogout = async () => {
     try {
@@ -79,7 +91,7 @@ export const Sidebar = ({ sidebarOpen, setSidebarOpen, token }) => {
               Main Menu
             </h3>
             <nav className="space-y-1">
-              {routes.map((route) => {
+              {visibleRoutes.map((route) => {
                 const isActive = location.pathname === route.path;
                 return (
                   <Link

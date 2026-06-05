@@ -32,18 +32,42 @@ export const useGithubProfile = (currentUser) => {
           nextLevelXp: 200,
         };
 
-        const targetUser = baseProfile.githubUsername && baseProfile.githubUsername !== "gitmatch" 
-          ? baseProfile.githubUsername 
-          : "facebook";
+        let level = 1;
+        let xp = 0;
+        let nextLevelXp = 200;
+        let stats = null;
 
-        const ghData = await getGithubUser(targetUser);
-        const { level, xp, nextLevelXp } = calculateTrueLevel(ghData);
+        if (currentUser.githubStats && currentUser.githubStats.updatedAt) {
+          level = currentUser.githubStats.level;
+          xp = currentUser.githubStats.xp;
+          nextLevelXp = currentUser.githubStats.nextLevelXp;
+          stats = currentUser.githubStats;
+        } else {
+          const targetUser = baseProfile.githubUsername && baseProfile.githubUsername !== "gitmatch" 
+            ? baseProfile.githubUsername 
+            : "facebook";
+
+          const ghData = await getGithubUser(targetUser);
+          const computed = calculateTrueLevel(ghData);
+          level = computed.level;
+          xp = computed.xp;
+          nextLevelXp = computed.nextLevelXp;
+          stats = {
+            publicRepos: ghData.public_repos || 0,
+            followers: ghData.followers || 0,
+            publicGists: ghData.public_gists || 0,
+            totalStars: 0,
+            accountAgeYears: 0,
+            recentEventsCount: 0
+          };
+        }
 
         setProfile({
           ...baseProfile,
           level,
           xp,
           nextLevelXp,
+          githubStats: stats,
         });
       } catch (err) {
         console.error("Failed to load GitHub profile:", err);
