@@ -182,10 +182,6 @@ export const signin = async (req, res, next) => {
       });
     }
 
-    if (!user.isOnboarded) {
-      user.isOnboarded = true;
-      await user.save();
-    }
     const token = generateToken(user._id);
     const sanitizedUser = sanitizeUser(user);
 
@@ -214,10 +210,6 @@ export const googleAuth = async (req, res, next) => {
     let user = await User.findOne({ email: email.toLowerCase() });
 
     if (user) {
-      if (!user.isOnboarded) {
-        user.isOnboarded = true;
-        await user.save();
-      }
       const token = generateToken(user._id);
       const sanitizedUser = sanitizeUser(user);
       setTokenCookie(res, token);
@@ -248,7 +240,7 @@ export const googleAuth = async (req, res, next) => {
       avatar: avatar || "",
       authProvider: "google",
       isEmailVerified: true,
-      isOnboarded: true,
+      isOnboarded: false,
       onboardingData: {
         bio: "",
         skills: "",
@@ -343,8 +335,6 @@ export const githubAuth = async (req, res, next) => {
           ...currentUser.githubLinkedAccounts,
           github: true,
         };
-        currentUser.isOnboarded = true; // Ensure they stay onboarded
-        
         if (!currentUser.avatar && githubUser.avatar_url) {
           currentUser.avatar = githubUser.avatar_url;
         }
@@ -383,10 +373,6 @@ export const githubAuth = async (req, res, next) => {
           ...user.githubLinkedAccounts,
           github: true,
         };
-        needsUpdate = true;
-      }
-      if (!user.isOnboarded) {
-        user.isOnboarded = true;
         needsUpdate = true;
       }
       if (!user.avatar && githubUser.avatar_url) {
@@ -435,7 +421,7 @@ export const githubAuth = async (req, res, next) => {
       isEmailVerified: !!githubUser.email,
       githubUsername: githubUser.login,
       githubLinkedAccounts: { github: true },
-      isOnboarded: true, 
+      isOnboarded: false, 
       onboardingData: {
         bio: githubUser.bio || "",
         githubUsername: githubUser.login,
