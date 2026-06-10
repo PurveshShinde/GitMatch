@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
-import { updateUser } from "../redux/authSlice";
+import { updateUser, logout } from "../redux/authSlice";
+import { auth } from "../firebase";
+import { signOut } from "firebase/auth";
 import {
   User,
   Shield,
@@ -539,7 +541,26 @@ const Settings = () => {
   };
 
   const handleLogout = async () => {
-    navigate("/auth");
+    try {
+      if (auth?.currentUser) {
+        await signOut(auth);
+      }
+      
+      const token = currentUser?.token || "";
+      await fetch(`${API_BASE_URL}/api/auth/signout`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: "include",
+      });
+    } catch (error) {
+      console.error("Error signing out", error);
+    } finally {
+      dispatch(logout());
+      navigate("/auth");
+    }
   };
 
   if (!currentUser)

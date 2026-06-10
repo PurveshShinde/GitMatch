@@ -18,6 +18,7 @@ import {
   Chrome,
   AlertCircle,
   CheckCircle,
+  ArrowLeft,
 } from "lucide-react";
 
 import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
@@ -390,6 +391,15 @@ export default function AuthPage() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center p-4 font-sans selection:bg-cyan-500/30 relative overflow-hidden">
+      {/* Back to Home Button */}
+      <button
+        onClick={() => navigate("/")}
+        className="absolute top-6 left-6 md:top-8 md:left-8 z-50 flex items-center gap-2 text-slate-400 hover:text-white hover:bg-slate-800/50 px-4 py-2 rounded-lg transition-all group font-mono text-sm border border-transparent hover:border-slate-700/50"
+      >
+        <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+        Home
+      </button>
+
       {/* --- Animated Background --- */}
       <div className="fixed inset-0 pointer-events-none">
         <div
