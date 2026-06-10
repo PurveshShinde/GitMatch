@@ -390,6 +390,12 @@ const TAXONOMY_DATA = [
  */
 export async function seedSkillTaxonomy() {
 	try {
+		const count = await SkillTaxonomy.countDocuments();
+		if (count > 0) {
+			console.log(`[TAXONOMY SEED] Taxonomy already seeded (${count} entries). Skipping.`);
+			return { seeded: 0, skipped: count };
+		}
+
 		const ops = TAXONOMY_DATA.map((entry) => ({
 			updateOne: {
 				filter: { canonical: entry.canonical },

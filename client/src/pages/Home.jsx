@@ -318,7 +318,7 @@ const HomePage = () => {
   }, []);
 
   // Helper to get display name/avatar
-  const effectiveUser = user || reduxUser;
+  const effectiveUser = reduxUser;
   const isAuthenticated = Boolean(effectiveUser);
 
   const displayName =
@@ -335,15 +335,8 @@ const HomePage = () => {
       effectiveUser?.photoURL ||
       "https://github.com/ghost.png";
 
-  // Added Loading State for better UX
-  if (loading && !reduxUser) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[#050508] text-white">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-500 mb-4" />
-        <p className="font-mono">LOADING_SESSION...</p>
-      </div>
-    );
-  }
+  // Loading State removed to allow instantaneous rendering of the landing page
+  // The navbar will gracefully transition to authenticated state once Firebase resolves.
 
   return (
     <div className="min-h-screen bg-[#050508] text-slate-200 font-sans selection:bg-blue-500/30 overflow-hidden relative">

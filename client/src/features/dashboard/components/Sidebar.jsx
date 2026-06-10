@@ -13,6 +13,8 @@ import {
   Trophy,
 } from "lucide-react";
 import { logout } from "../../../redux/authSlice";
+import { auth } from "../../../firebase";
+import { signOut } from "firebase/auth";
 
 const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || "http://localhost:3000";
 
@@ -42,6 +44,9 @@ export const Sidebar = ({ sidebarOpen, setSidebarOpen, token }) => {
 
   const handleLogout = async () => {
     try {
+      if (auth) {
+        await signOut(auth);
+      }
       await fetch(`${API_BASE_URL}/api/auth/signout`, {
         method: "POST",
         headers: {
