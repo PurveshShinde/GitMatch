@@ -58,8 +58,10 @@ export const Sidebar = ({ sidebarOpen, setSidebarOpen, token }) => {
     } catch (error) {
       console.error("Error signing out", error);
     } finally {
-      dispatch(logout());
       navigate("/");
+      setTimeout(() => {
+        dispatch(logout());
+      }, 10);
     }
   };
 
