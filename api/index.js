@@ -17,6 +17,7 @@ import User from "./models/user.model.js";
 import { seedSkillTaxonomy } from "./data/skillTaxonomySeed.js";
 import { loadTaxonomy } from "./services/skillExtraction.service.js";
 
+// Hello
 dotenv.config();
 
 // Workaround for Node.js 22 + MongoDB Atlas TLS issue
@@ -112,7 +113,7 @@ io.on("connection", (socket) => {
     // Security: sender must be one of the two participants
     const participantIds = chatId.split("_");
     const userId = socket.data.userId.toString();
-    
+
     console.log(`[SOCKET] sendMessage attempt. User: ${userId}, Room: ${chatId}`);
 
     if (!participantIds.some(id => id.toString() === userId)) {
