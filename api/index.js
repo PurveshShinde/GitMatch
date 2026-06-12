@@ -37,7 +37,7 @@ const app = express();
 
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    origin: [process.env.CLIENT_URL, "http://localhost:5173"].filter(Boolean),
     credentials: true,
   })
 );
@@ -74,7 +74,7 @@ const httpServer = createServer(app);
 const io = new Server(httpServer, {
   path: "/api/socket.io",
   cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    origin: [process.env.CLIENT_URL, "http://localhost:5173"].filter(Boolean),
     credentials: true,
   },
 });
