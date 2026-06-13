@@ -23,7 +23,13 @@ import {
 
 import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { auth } from "../firebase";
-import { signupUser, signinUser, googleAuthUser, githubAuthUser, resendVerificationEmail } from "../redux/authSlice";
+import {
+  signupUser,
+  signinUser,
+  googleAuthUser,
+  githubAuthUser,
+  resendVerificationEmail,
+} from "../redux/authSlice";
 import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
 import PasswordStrength from "../components/PasswordStrength";
 import { usePasswordStrength } from "../hooks/usePasswordStrength";
@@ -40,7 +46,9 @@ export default function AuthPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const dispatch = useDispatch();
-  const { loading: isAuthAttempting, error: reduxError } = useSelector((state) => state.auth);
+  const { loading: isAuthAttempting, error: reduxError } = useSelector(
+    (state) => state.auth,
+  );
 
   // --- UI STATES ---
   const [isSignUp, setIsSignUp] = useState(false);
@@ -91,7 +99,9 @@ export default function AuthPage() {
     const handleMessage = async (event) => {
       if (event.data?.type === "github_auth_complete" && event.data?.code) {
         try {
-          const authResult = await dispatch(githubAuthUser({ code: event.data.code })).unwrap();
+          const authResult = await dispatch(
+            githubAuthUser({ code: event.data.code }),
+          ).unwrap();
           setSuccessMessage("Sign in successful! Redirecting...");
           setTimeout(() => {
             navigate("/dashboard");
@@ -161,7 +171,10 @@ export default function AuthPage() {
     } else if (name === "password") {
       error = validatePassword(value);
       // Also validate confirm password if it exists
-      if (signupFields.confirmPassword && value !== signupFields.confirmPassword) {
+      if (
+        signupFields.confirmPassword &&
+        value !== signupFields.confirmPassword
+      ) {
         setFieldErrors((prev) => ({
           ...prev,
           confirmPassword: "Passwords do not match",
@@ -220,7 +233,9 @@ export default function AuthPage() {
 
     // Get values from state or form (for backward compatibility)
     const email = isSignupForm ? signupFields.email : signinFields.email;
-    const password = isSignupForm ? signupFields.password : signinFields.password;
+    const password = isSignupForm
+      ? signupFields.password
+      : signinFields.password;
     const username = isSignupForm ? signupFields.username : "";
     const confirmPassword = isSignupForm ? signupFields.confirmPassword : "";
 
@@ -283,12 +298,19 @@ export default function AuthPage() {
 
     try {
       if (isSignupForm) {
-        const result = await dispatch(signupUser({ username, email, password })).unwrap();
+        const result = await dispatch(
+          signupUser({ username, email, password }),
+        ).unwrap();
         setSuccessMessage(
-          "✓ Account created! Check your email to verify your account.\n\n📧 Verification link expires in 24 hours.\n\n👉 After verification, you can sign in with your credentials."
+          "✓ Account created! Check your email to verify your account.\n\n📧 Verification link expires in 24 hours.\n\n👉 After verification, you can sign in with your credentials.",
         );
         // Reset form
-        setSignupFields({ username: "", email: "", password: "", confirmPassword: "" });
+        setSignupFields({
+          username: "",
+          email: "",
+          password: "",
+          confirmPassword: "",
+        });
         setTimeout(() => {
           setIsSignUp(false);
           setSuccessMessage("");
@@ -305,7 +327,9 @@ export default function AuthPage() {
     } catch (err) {
       // Handle object-based error payload
       if (typeof err === "object" && err?.needsVerification) {
-        setError("Your email is not verified yet. Please check your email for a verification link.");
+        setError(
+          "Your email is not verified yet. Please check your email for a verification link.",
+        );
         setUnverifiedEmail(err.email || email);
       } else if (typeof err === "object" && err?.message) {
         setError(err.message);
@@ -321,10 +345,12 @@ export default function AuthPage() {
     if (!unverifiedEmail) return;
 
     try {
-      const result = await dispatch(resendVerificationEmail(unverifiedEmail)).unwrap();
+      const result = await dispatch(
+        resendVerificationEmail(unverifiedEmail),
+      ).unwrap();
       setError(null);
       setSuccessMessage(
-        `✓ Verification email resent to ${unverifiedEmail}\n\n📧 Check your inbox and spam folder\n\n👉 Click the link to verify your account`
+        `✓ Verification email resent to ${unverifiedEmail}\n\n📧 Check your inbox and spam folder\n\n👉 Click the link to verify your account`,
       );
       setTimeout(() => setSuccessMessage(""), 5000);
     } catch (err) {
@@ -352,7 +378,7 @@ export default function AuthPage() {
       setSuccessMessage(
         mode === "signup"
           ? "Account created successfully! Redirecting..."
-          : "Sign in successful! Redirecting..."
+          : "Sign in successful! Redirecting...",
       );
 
       setTimeout(() => {
@@ -451,7 +477,6 @@ export default function AuthPage() {
           </button>
         </div>
 
-
         {/* --- Sign Up Form --- */}
         <div
           className={`
@@ -474,7 +499,10 @@ export default function AuthPage() {
           >
             {/* Error Message - Inline */}
             {error && (
-              <Alert variant="destructive" className="w-full mb-6 border-red-500 bg-red-900/20 text-red-600">
+              <Alert
+                variant="destructive"
+                className="w-full mb-6 border-red-500 bg-red-900/20 text-red-600"
+              >
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle>Error</AlertTitle>
                 <AlertDescription className="mt-2 text-sm">
@@ -485,7 +513,9 @@ export default function AuthPage() {
                       disabled={isAuthAttempting}
                       className="mt-3 block w-full text-xs bg-red-600 hover:bg-red-700 disabled:bg-gray-600 text-white px-3 py-2 rounded transition-colors font-medium"
                     >
-                      {isAuthAttempting ? "Resending..." : "Resend Verification Email"}
+                      {isAuthAttempting
+                        ? "Resending..."
+                        : "Resend Verification Email"}
                     </button>
                   )}
                 </AlertDescription>
@@ -537,15 +567,6 @@ export default function AuthPage() {
                   <Github size={20} />
                 </span>
               </button>
-              <button
-                type="button"
-                className="group relative p-3 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:border-cyan-500/50 transition-all duration-300 overflow-hidden"
-              >
-                <div className="absolute inset-0 bg-cyan-500/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
-                <span className="relative z-10">
-                  <Code2 size={20} />
-                </span>
-              </button>
             </div>
 
             <div className="w-full space-y-5">
@@ -573,7 +594,9 @@ export default function AuthPage() {
                   username
                 </label>
                 {fieldErrors.username && (
-                  <p className="text-red-300 text-xs mt-2 px-2 py-1 bg-red-900/40 rounded border border-red-700/50 font-mono">{fieldErrors.username}</p>
+                  <p className="text-red-300 text-xs mt-2 px-2 py-1 bg-red-900/40 rounded border border-red-700/50 font-mono">
+                    {fieldErrors.username}
+                  </p>
                 )}
               </div>
 
@@ -601,7 +624,9 @@ export default function AuthPage() {
                   email
                 </label>
                 {fieldErrors.email && (
-                  <p className="text-red-300 text-xs mt-2 px-2 py-1 bg-red-900/40 rounded border border-red-700/50 font-mono">{fieldErrors.email}</p>
+                  <p className="text-red-300 text-xs mt-2 px-2 py-1 bg-red-900/40 rounded border border-red-700/50 font-mono">
+                    {fieldErrors.email}
+                  </p>
                 )}
               </div>
 
@@ -643,7 +668,9 @@ export default function AuthPage() {
                   )}
                 </button>
                 {fieldErrors.password && (
-                  <p className="text-red-300 text-xs mt-2 px-2 py-1 bg-red-900/40 rounded border border-red-700/50 font-mono">{fieldErrors.password}</p>
+                  <p className="text-red-300 text-xs mt-2 px-2 py-1 bg-red-900/40 rounded border border-red-700/50 font-mono">
+                    {fieldErrors.password}
+                  </p>
                 )}
               </div>
 
@@ -703,7 +730,9 @@ export default function AuthPage() {
                   )}
                 </button>
                 {fieldErrors.confirmPassword && (
-                  <p className="text-red-300 text-xs mt-2 px-2 py-1 bg-red-900/40 rounded border border-red-700/50 font-mono">{fieldErrors.confirmPassword}</p>
+                  <p className="text-red-300 text-xs mt-2 px-2 py-1 bg-red-900/40 rounded border border-red-700/50 font-mono">
+                    {fieldErrors.confirmPassword}
+                  </p>
                 )}
               </div>
             </div>
@@ -724,7 +753,10 @@ export default function AuthPage() {
               {isAuthAttempting ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
-                <Zap size={18} className="group-hover:text-yellow-300 transition-colors" />
+                <Zap
+                  size={18}
+                  className="group-hover:text-yellow-300 transition-colors"
+                />
               )}
               <span>
                 {isAuthAttempting ? "AUTHORIZING..." : "EXECUTE_SIGNUP"}
@@ -755,7 +787,10 @@ export default function AuthPage() {
           >
             {/* Error Message - Inline */}
             {error && (
-              <Alert variant="destructive" className="w-full mb-6 border-red-500 bg-red-900/20 text-red-600">
+              <Alert
+                variant="destructive"
+                className="w-full mb-6 border-red-500 bg-red-900/20 text-red-600"
+              >
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle>Error</AlertTitle>
                 <AlertDescription className="mt-2 text-sm">
@@ -766,7 +801,9 @@ export default function AuthPage() {
                       disabled={isAuthAttempting}
                       className="mt-3 block w-full text-xs bg-red-600 hover:bg-red-700 disabled:bg-gray-600 text-white px-3 py-2 rounded transition-colors font-medium"
                     >
-                      {isAuthAttempting ? "Resending..." : "Resend Verification Email"}
+                      {isAuthAttempting
+                        ? "Resending..."
+                        : "Resend Verification Email"}
                     </button>
                   )}
                 </AlertDescription>
@@ -818,15 +855,6 @@ export default function AuthPage() {
                   <Github size={20} />
                 </span>
               </button>
-              <button
-                type="button"
-                className="group relative p-3 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:border-violet-500/50 transition-all duration-300 overflow-hidden"
-              >
-                <div className="absolute inset-0 bg-violet-500/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
-                <span className="relative z-10">
-                  <Code2 size={20} />
-                </span>
-              </button>
             </div>
 
             <div className="w-full space-y-5">
@@ -854,7 +882,9 @@ export default function AuthPage() {
                   email
                 </label>
                 {fieldErrors.email && (
-                  <p className="text-red-300 text-xs mt-2 px-2 py-1 bg-red-900/40 rounded border border-red-700/50 font-mono">{fieldErrors.email}</p>
+                  <p className="text-red-300 text-xs mt-2 px-2 py-1 bg-red-900/40 rounded border border-red-700/50 font-mono">
+                    {fieldErrors.email}
+                  </p>
                 )}
               </div>
 
@@ -896,7 +926,9 @@ export default function AuthPage() {
                   )}
                 </button>
                 {fieldErrors.password && (
-                  <p className="text-red-300 text-xs mt-2 px-2 py-1 bg-red-900/40 rounded border border-red-700/50 font-mono">{fieldErrors.password}</p>
+                  <p className="text-red-300 text-xs mt-2 px-2 py-1 bg-red-900/40 rounded border border-red-700/50 font-mono">
+                    {fieldErrors.password}
+                  </p>
                 )}
               </div>
             </div>
@@ -962,7 +994,8 @@ export default function AuthPage() {
                 Already <br /> Connected?
               </h1>
               <p className="text-blue-100 mb-10 text-sm leading-relaxed font-light max-w-[260px]">
-                Re-establish connection to the mainframe and sync your latest commits.
+                Re-establish connection to the mainframe and sync your latest
+                commits.
               </p>
               <button
                 type="button"
@@ -989,7 +1022,8 @@ export default function AuthPage() {
                 New <br /> Protocol?
               </h1>
               <p className="text-blue-100 mb-10 text-sm leading-relaxed font-light max-w-[260px]">
-                Initialize a new developer instance and start building your legacy.
+                Initialize a new developer instance and start building your
+                legacy.
               </p>
               <button
                 type="button"
@@ -1008,5 +1042,4 @@ export default function AuthPage() {
       </div>
     </div>
   );
-};
-
+}
