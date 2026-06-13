@@ -287,6 +287,7 @@ const Settings = () => {
   useEffect(() => {
     const handleMessage = (event) => {
       if (event.data?.type === "github_auth_complete" && event.data?.code) {
+        sessionStorage.removeItem("github_auth_code");
         exchangeCodeForGitHubAuth(event.data.code);
       }
     };
