@@ -315,7 +315,10 @@ export const githubAuth = async (req, res, next) => {
     }
 
     // --- CASE 1: USER IS ALREADY LOGGED IN (Linking) ---
-    const existingToken = req.cookies?.access_token;
+    let existingToken = req.cookies?.access_token;
+    if (!existingToken && req.headers.authorization?.startsWith("Bearer ")) {
+      existingToken = req.headers.authorization.split(" ")[1];
+    }
     let authenticatedUserId = null;
     if (existingToken) {
       try {

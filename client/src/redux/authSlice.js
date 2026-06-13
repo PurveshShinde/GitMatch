@@ -91,11 +91,17 @@ export const googleAuthUser = createAsyncThunk(
 
 export const githubAuthUser = createAsyncThunk(
   "auth/githubAuthUser",
-  async ({ code }, { rejectWithValue }) => {
+  async ({ code }, { rejectWithValue, getState }) => {
     try {
+      const { auth } = getState();
+      const token = auth.token;
+
       const response = await fetch(`${API_BASE_URL}/api/auth/github`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         credentials: "include",
         body: JSON.stringify({ code }),
       });

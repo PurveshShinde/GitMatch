@@ -204,7 +204,7 @@ const Badge = ({ text, color = "blue" }) => {
 const Settings = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const { currentUser } = useSelector((state) => state.auth);
+  const { currentUser, token } = useSelector((state) => state.auth);
 
   const [saving, setSaving] = useState(false);
   const [openSection, setOpenSection] = useState("account");
@@ -375,7 +375,10 @@ const Settings = () => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/auth/github`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         credentials: "include",
         body: JSON.stringify({ code }),
       });
@@ -411,7 +414,10 @@ const Settings = () => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/users/unlink-github`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         credentials: "include",
       });
 
@@ -515,7 +521,10 @@ const Settings = () => {
 
       const response = await fetch(`${API_BASE_URL}/api/users/update-profile`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         credentials: "include",
         body: JSON.stringify(dataToSave),
       });
