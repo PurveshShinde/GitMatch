@@ -16,10 +16,33 @@ GitMatch is a developer-focused platform designed to help users discover, analyz
 
 🛠️ Tech Stack
 
-- Frontend: TypeScript / JavaScript
-- Backend: Node.js (if applicable)
-- APIs: GitHub REST API
-- Architecture: REST-based
+**Frontend:**
+- **React.js** with **Vite** for fast, modern UI development.
+- **Tailwind CSS** & **Shadcn UI** for sleek, responsive styling.
+- **Redux Toolkit** for efficient state management.
+- **Socket.io-client** for real-time bidirectional communication.
+- **Firebase** for additional client-side integrations.
+
+**Backend:**
+- **Node.js** & **Express.js** for the robust RESTful API server.
+- **MongoDB** (with Mongoose) for flexible database management.
+- **Socket.io** for real-time WebSocket communication.
+- **JWT** & **bcryptjs** for secure authentication and authorization.
+- **Nodemailer** for email notifications.
+
+**External APIs & Architecture:**
+- **GitHub REST API** to fetch and process real-time public developer data.
+- **REST-based Architecture** with real-time WebSocket support.
+
+---
+
+⚙️ How It Works
+
+1. **Profile Initialization:** Users join the platform, and GitMatch integrates with the GitHub API to fetch their public developer data, including repositories, preferred languages, and contribution history.
+2. **Data Processing & Insights:** The backend processes this GitHub data to generate meaningful insights, visualizing the user's tech stack and coding patterns.
+3. **Smart Matching:** By analyzing tech stacks, repository focus, and developer interests, GitMatch's engine recommends similar developers to connect and collaborate with.
+4. **Real-Time Connectivity:** Leveraging WebSockets, the platform enables real-time features like instant notifications or live messaging between matched developers.
+5. **Discovery & Exploration:** Users can seamlessly search and explore other developer profiles, discover trending projects, and find relevant repositories based on specific activity metrics.
 
 ---
 

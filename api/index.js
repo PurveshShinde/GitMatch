@@ -20,6 +20,11 @@ import { loadTaxonomy } from "./services/skillExtraction.service.js";
 // Hello
 dotenv.config();
 
+import dns from "dns";
+
+// Force Node.js to use Google & Cloudflare DNS to bypass local ISP blocks on MongoDB SRV records
+dns.setServers(["8.8.8.8", "1.1.1.1"]);
+
 // Workaround for Node.js 22 + MongoDB Atlas TLS issue
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
