@@ -537,15 +537,6 @@ export default function AuthPage() {
                   <Github size={20} />
                 </span>
               </button>
-              <button
-                type="button"
-                className="group relative p-3 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:border-cyan-500/50 transition-all duration-300 overflow-hidden"
-              >
-                <div className="absolute inset-0 bg-cyan-500/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
-                <span className="relative z-10">
-                  <Code2 size={20} />
-                </span>
-              </button>
             </div>
 
             <div className="w-full space-y-5">
@@ -816,15 +807,6 @@ export default function AuthPage() {
                 <div className="absolute inset-0 bg-violet-500/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
                 <span className="relative z-10">
                   <Github size={20} />
-                </span>
-              </button>
-              <button
-                type="button"
-                className="group relative p-3 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:border-violet-500/50 transition-all duration-300 overflow-hidden"
-              >
-                <div className="absolute inset-0 bg-violet-500/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
-                <span className="relative z-10">
-                  <Code2 size={20} />
                 </span>
               </button>
             </div>
