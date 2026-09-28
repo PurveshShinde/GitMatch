@@ -9,6 +9,10 @@
 </p>
 
 <p align="center">
+  <a href="https://gitmatch-delta.vercel.app/"><img src="https://img.shields.io/badge/🌐_Live_Demo-gitmatch--delta.vercel.app-blueviolet?style=for-the-badge" alt="Live Demo" /></a>
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react" />
   <img src="https://img.shields.io/badge/Node.js-Express%205-339933?style=flat-square&logo=node.js" />
   <img src="https://img.shields.io/badge/MongoDB-Atlas-47A248?style=flat-square&logo=mongodb" />
@@ -120,28 +124,30 @@ Results are further adjusted with **confidence multipliers** and **penalties** f
 
 ## 👥 Team
 
+<div align="center">
 <table>
   <tr>
     <td align="center">
       <a href="https://github.com/PurveshShinde">
-        <img src="https://github.com/PurveshShinde.png" width="100px;" style="border-radius: 50%;" alt="Purvesh Shailesh Shinde"/><br />
+        <img src="https://avatars.githubusercontent.com/PurveshShinde?v=4&s=100" width="100px;" style="border-radius: 50%;" alt="Purvesh Shinde"/><br />
         <sub><b>Purvesh Shinde</b></sub>
       </a>
     </td>
     <td align="center">
       <a href="https://github.com/pawar-kaustubh">
-        <img src="https://github.com/pawar-kaustubh.png" width="100px;" style="border-radius: 50%;" alt="Kaustubh Pawar"/><br />
+        <img src="https://avatars.githubusercontent.com/pawar-kaustubh?v=4&s=100" width="100px;" style="border-radius: 50%;" alt="Kaustubh Pawar"/><br />
         <sub><b>Kaustubh Pawar</b></sub>
       </a>
     </td>
     <td align="center">
       <a href="https://github.com/ameyg11">
-        <img src="https://github.com/ameyg11.png" width="100px;" style="border-radius: 50%;" alt="Amey"/><br />
+        <img src="https://avatars.githubusercontent.com/ameyg11?v=4&s=100" width="100px;" style="border-radius: 50%;" alt="Amey"/><br />
         <sub><b>Amey</b></sub>
       </a>
     </td>
   </tr>
 </table>
+</div>
 
 ---
 
