@@ -171,20 +171,20 @@ Results are further adjusted with **confidence multipliers** and **penalties** f
   <tr>
     <td align="center">
       <a href="https://github.com/PurveshShinde">
-        <img src="https://avatars.githubusercontent.com/PurveshShinde?v=4&s=100" width="100px;" style="border-radius: 50%;" alt="Purvesh Shinde"/><br />
+        <img src="https://images.weserv.nl/?url=github.com/PurveshShinde.png&w=100&h=100&mask=circle&fit=cover" width="100px" alt="Purvesh Shinde"/><br />
         <sub><b>Purvesh Shinde</b></sub>
       </a>
     </td>
     <td align="center">
       <a href="https://github.com/pawar-kaustubh">
-        <img src="https://avatars.githubusercontent.com/pawar-kaustubh?v=4&s=100" width="100px;" style="border-radius: 50%;" alt="Kaustubh Pawar"/><br />
+        <img src="https://images.weserv.nl/?url=github.com/pawar-kaustubh.png&w=100&h=100&mask=circle&fit=cover" width="100px" alt="Kaustubh Pawar"/><br />
         <sub><b>Kaustubh Pawar</b></sub>
       </a>
     </td>
     <td align="center">
       <a href="https://github.com/ameyg11">
-        <img src="https://avatars.githubusercontent.com/ameyg11?v=4&s=100" width="100px;" style="border-radius: 50%;" alt="Amey"/><br />
-        <sub><b>Amey</b></sub>
+        <img src="https://images.weserv.nl/?url=github.com/ameyg11.png&w=100&h=100&mask=circle&fit=cover" width="100px" alt="Amey Gawade"/><br />
+        <sub><b>Amey Gawade</b></sub>
       </a>
     </td>
   </tr>
