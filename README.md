@@ -5,7 +5,8 @@
 <h1 align="center">🚀 GitMatch</h1>
 
 <p align="center">
-  <strong>Discover, analyze, and connect with developers through the power of GitHub data.</strong>
+  <strong>Commit Code. Build Legacy.</strong><br/>
+  The platform that parses your <code>git log</code> to match you with elite teams.
 </p>
 
 <p align="center">
@@ -22,51 +23,92 @@
 
 ---
 
-## 📖 About
+## 📖 What is GitMatch?
 
-**GitMatch** is a full-stack web application built as a **B.Tech Major Project**. It uses the GitHub API to intelligently match developers with relevant open-source issues, facilitate real-time collaboration, and provide deep insights into developer profiles.
+Getting into **open-source contribution** is hard for new developers. You don't know which projects need help, which issues match your skills, or who to collaborate with. **GitMatch solves this.**
 
-The platform features a **multi-signal ranking engine** that scores GitHub issues against a developer's skill vector, a **real-time chat system** powered by WebSockets, and a **gamification layer** with XP and leveling based on GitHub activity.
+GitMatch connects to your GitHub account, analyzes your skills, repositories, and activity — then **intelligently recommends open-source issues** you're best suited to work on. It also connects you with like-minded developers for collaboration through real-time chat, tracks your progress with XP and achievement badges, and ranks contributors on a community leaderboard.
 
----
-
-## ✨ Features
-
-- 🔍 **Smart Issue Matching** — Multi-signal ranking engine matches GitHub issues to your skills across 7 weighted dimensions
-- 🧠 **Skill Extraction** — NLP-powered skill extraction from issue text, labels, and repository metadata using a canonical taxonomy
-- 📊 **Developer Analytics** — XP & leveling system computed from repos, stars, followers, and activity
-- 💬 **Real-time Chat** — Socket.io messaging with JWT-authenticated WebSocket connections
-- 🔐 **Multi-Provider Auth** — Local signup, Google OAuth, and GitHub OAuth with email verification
-- 🎯 **Personalized Onboarding** — Guided wizard that captures skill preferences and experience level
-- 🌐 **Community Discovery** — Find and connect with developers based on shared skills
-- 🔄 **GitHub Linking** — Link your GitHub account to enrich your profile with live data
-- 📈 **Repository Explorer** — Browse repositories with stats and insights
-- 🛡️ **Rate Limiting** — IP-based rate limiting on sensitive auth routes
+> Stop sending resumes. Start sending PRs.
 
 ---
 
-## 🏗️ Architecture
+## 📸 Screenshots
 
-```
-┌─────────────────────────────────────────────────────┐
-│              CLIENT (React + Vite)                   │
-│                                                      │
-│  Auth ─── Dashboard ─── Chat ─── Settings            │
-│       └──── Redux Toolkit + Persist ────┘            │
-│       └──── Firebase (Google Auth) ─────┘            │
-└──────────────┬─────────────────────┬─────────────────┘
-               │ REST API            │ WebSocket
-               ▼                     ▼
-┌─────────────────────────────────────────────────────┐
-│              SERVER (Node.js + Express)               │
-│                                                      │
-│  Middleware: JWT Auth │ Rate Limiter │ CORS            │
-│  Services:  Skill Extraction │ Issue Matching         │
-│             GitHub Stats │ Issue Ingestion             │
-│                                                      │
-│  └──────── MongoDB Atlas (Mongoose ODM) ──────────┘  │
-└─────────────────────────────────────────────────────┘
-```
+### 🏠 Landing Page
+<p align="center">
+  <img src="assets/home.png" alt="GitMatch Landing Page" width="90%" />
+</p>
+
+A developer-themed landing page with a terminal animation that showcases how GitMatch works — from initializing your profile to finding your perfect match.
+
+---
+
+### 🔐 Authentication
+<p align="center">
+  <img src="assets/auth.gif" alt="GitMatch Auth Flow" width="90%" />
+</p>
+
+Sign up with email, Google, or GitHub. Email verification and password reset flows are built-in. Link your GitHub account during onboarding to unlock all features.
+
+---
+
+### 📊 Dashboard — Developer DNA & Achievements
+<p align="center">
+  <img src="assets/dashboard.png" alt="GitMatch Dashboard" width="90%" />
+</p>
+
+Your personalized dashboard shows:
+- **Developer DNA** — Experience level, primary role, team size preference, and availability
+- **Skill Matrix** — Radar chart visualizing your strengths across Frontend, Backend, DevOps, Design, and Testing
+- **GitHub Achievements** — Unlock badges as you grow (Level 3 • Contributor, and 11 badges to earn)
+- **Activity Feed** — Live feed of your recent GitHub pushes and contributions
+- **Weekly Goals** — Track personal milestones like "Solve one good first issue"
+
+---
+
+### ⚡ Smart Issue Finder
+<p align="center">
+  <img src="assets/issues.png" alt="Smart Issue Finder" width="90%" />
+</p>
+
+The core feature — a **skill-based issue recommendation engine** that:
+- Scans open-source repositories and indexes real GitHub issues
+- Shows a **match percentage** (e.g., 64%, 59%) based on how well the issue fits your skills
+- Filters by **Issue Type** (Bug, Feature, Docs, Optimization), **Difficulty** (Beginner → Advanced), and **Repo Scale** (Small → Large OSS)
+- Tags each issue with matched technologies (Java, React, JavaScript, Next.js, etc.)
+- Explains **"Why recommended?"** so you understand the match
+- One-click **"View on GitHub"** to jump straight into contributing
+
+---
+
+### 🏆 Community Leaderboard
+<p align="center">
+  <img src="assets/community.png" alt="Community Leaderboard" width="90%" />
+</p>
+
+See how you stack up against other developers on GitMatch:
+- **GitHub True Level** — Computed from repos, followers, stars, and recent activity (Level 2 • Rookie → Level 3 • Contributor)
+- **XP System** — Earn XP from your GitHub activity (453 / 800 XP to next level)
+- **Performance Metrics** — Repos, followers, and stars at a glance
+- **Ranked Leaderboard** — Compete with verified users in the community
+
+---
+
+## ✨ Key Features
+
+| Feature | Description |
+|---|---|
+| 🔍 **Smart Issue Matching** | 7-dimensional ranking engine matches GitHub issues to your skills, experience, and preferences |
+| 🧠 **Skill Extraction** | NLP-powered skill detection from issue text, labels, and repo metadata using a canonical taxonomy |
+| 🏅 **Achievement Badges** | Unlock 11 badges as you grow — from first contribution to open-source veteran |
+| 📊 **Developer DNA** | Radar chart skill matrix + experience profile built from your GitHub data |
+| 💬 **Real-time Chat** | Socket.io-powered messaging to collaborate with matched developers |
+| 🏆 **Community Leaderboard** | XP-based ranking system with GitHub True Level (Rookie → Contributor → ...) |
+| 🔐 **Multi-Provider Auth** | Email, Google OAuth, and GitHub OAuth with email verification |
+| 🎯 **Personalized Onboarding** | Guided wizard to capture skills, experience, and collaboration preferences |
+| 📈 **Repository Explorer** | Browse your GitHub repos with stats and insights |
+| 🎯 **Weekly Goals** | Set and track personal contribution milestones |
 
 ---
 
