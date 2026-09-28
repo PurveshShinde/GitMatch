@@ -100,12 +100,7 @@ export const signup = async (req, res, next) => {
 
     // Generate and send verification email
     const verificationToken = user.createEmailVerificationToken();
-    console.log("[SIGNUP] Token generated (plain):", verificationToken);
-    console.log("[SIGNUP] Token hashed & stored:", user.emailVerificationToken);
-    console.log(
-      "[SIGNUP] Token expires at:",
-      new Date(user.emailVerificationExpires),
-    );
+    console.log("[SIGNUP] Verification token generated for:", user.email);
 
     await user.save({ validateBeforeSave: false });
     console.log("[SIGNUP] User saved with verification token");
@@ -608,15 +603,7 @@ export const forgotPassword = async (req, res, next) => {
     }
 
     const resetToken = user.createPasswordResetToken();
-    console.log("[FORGOT-PASS] Reset token generated (plain):", resetToken);
-    console.log(
-      "[FORGOT-PASS] Token hashed & stored:",
-      user.passwordResetToken,
-    );
-    console.log(
-      "[FORGOT-PASS] Token expires at:",
-      new Date(user.passwordResetExpires),
-    );
+    console.log("[FORGOT-PASS] Reset token generated for:", user.email);
 
     await user.save({ validateBeforeSave: false });
     console.log("[FORGOT-PASS] User saved with reset token");

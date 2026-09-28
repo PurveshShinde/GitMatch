@@ -19,8 +19,6 @@ import { loadTaxonomy } from "./services/skillExtraction.service.js";
 
 dotenv.config();
 
-// Workaround for Node.js 22 + MongoDB Atlas TLS issue
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 mongoose
   .connect(process.env.MONGO, { family: 4 })

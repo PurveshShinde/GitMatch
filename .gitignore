@@ -23,3 +23,10 @@ dist-ssr
 *.sln
 *.sw?
 .env
+
+# Test/debug files
+test-dns.js
+
+# Tool output directories
+brag-output*/
+.agents/
