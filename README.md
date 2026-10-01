@@ -164,6 +164,15 @@ Results are further adjusted with **confidence multipliers** and **penalties** f
 
 ---
 
+## 📜 Publications & Certification
+
+This project has been published as a research paper in the **International Journal of Research and Analytical Reviews (IJRAR)**.
+
+- 📄 **[Read the Research Paper](assets/IJRAR26B2863%20Reaseach%20Papers.pdf)**
+- 🏆 **[View the Publication Certificate](assets/IJRAR_Certificate_IJRAR_335237.pdf)**
+
+---
+
 ## 👥 Team
 
 <div align="center">
