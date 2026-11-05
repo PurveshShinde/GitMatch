@@ -12,7 +12,6 @@
 </p>
 
 <p align="center">
-  <a href="https://gitmatch-delta.vercel.app/"><img src="https://img.shields.io/badge/Production%20Deployment-gitmatch--delta.vercel.app-0284c7?style=flat-square" alt="Live Demo" /></a>
   <img src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black" alt="React 19" />
   <img src="https://img.shields.io/badge/Node.js-Express%205-339933?style=flat-square&logo=node.js&logoColor=white" alt="Node.js Express 5" />
   <img src="https://img.shields.io/badge/MongoDB-Atlas-47A248?style=flat-square&logo=mongodb&logoColor=white" alt="MongoDB" />
