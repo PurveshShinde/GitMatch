@@ -1,5 +1,8 @@
 import React from "react";
-import { Search, RefreshCw, AlertTriangle, Zap, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, RefreshCw, AlertTriangle, Zap, ChevronLeft, ChevronRight, LogIn } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useDispatch } from "react-redux";
+import { logout } from "../../redux/authSlice.js";
 import useRecommendedIssues from "../../hooks/useRecommendedIssues.js";
 import IssueCard from "./IssueCard.jsx";
 import IssueFilters from "./IssueFilters.jsx";
@@ -10,10 +13,19 @@ import IssueCardSkeleton from "./IssueCardSkeleton.jsx";
  * Replaces the old IssuesView that did simple GitHub API fetches.
  */
 export default function RecommendedIssues() {
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
+
+  const handleRelogin = () => {
+    dispatch(logout());
+    navigate("/auth", { state: { mode: "signin" } });
+  };
+
   const {
     issues,
     loading,
     error,
+    isAuthError,
     pagination,
     userProfile,
     meta,
@@ -160,23 +172,47 @@ export default function RecommendedIssues() {
               }}
             >
               <AlertTriangle style={{ width: 16, height: 16, flexShrink: 0 }} />
-              {error}
-              <button
-                onClick={refetch}
-                style={{
-                  marginLeft: "auto",
-                  padding: "4px 12px",
-                  borderRadius: 6,
-                  border: "1px solid rgba(239,68,68,0.3)",
-                  backgroundColor: "transparent",
-                  color: "#f87171",
-                  fontSize: 11,
-                  fontFamily: "monospace",
-                  cursor: "pointer",
-                }}
-              >
-                Retry
-              </button>
+              <span style={{ flex: 1 }}>{error}</span>
+              {isAuthError || /unauthorized|token|session/i.test(error) ? (
+                <button
+                  onClick={handleRelogin}
+                  style={{
+                    marginLeft: "auto",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "6px 14px",
+                    borderRadius: 6,
+                    border: "1px solid rgba(239,68,68,0.4)",
+                    backgroundColor: "rgba(239,68,68,0.15)",
+                    color: "#fca5a5",
+                    fontSize: 11,
+                    fontFamily: "monospace",
+                    cursor: "pointer",
+                    fontWeight: 600,
+                  }}
+                >
+                  <LogIn style={{ width: 12, height: 12 }} />
+                  Sign In Again
+                </button>
+              ) : (
+                <button
+                  onClick={refetch}
+                  style={{
+                    marginLeft: "auto",
+                    padding: "4px 12px",
+                    borderRadius: 6,
+                    border: "1px solid rgba(239,68,68,0.3)",
+                    backgroundColor: "transparent",
+                    color: "#f87171",
+                    fontSize: 11,
+                    fontFamily: "monospace",
+                    cursor: "pointer",
+                  }}
+                >
+                  Retry
+                </button>
+              )}
             </div>
           )}
 

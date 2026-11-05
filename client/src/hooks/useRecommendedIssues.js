@@ -14,6 +14,7 @@ export default function useRecommendedIssues() {
   const [issues, setIssues] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isAuthError, setIsAuthError] = useState(false);
   const [pagination, setPagination] = useState({
     page: 1,
     limit: 20,
@@ -40,6 +41,7 @@ export default function useRecommendedIssues() {
     async (page = 1) => {
       setLoading(true);
       setError(null);
+      setIsAuthError(false);
 
       try {
         const params = new URLSearchParams();
@@ -67,7 +69,11 @@ export default function useRecommendedIssues() {
 
         const data = await response.json();
 
-        if (data.success && data.data) {
+        if (response.status === 401) {
+          setError(data.message || "Unauthorized: invalid token");
+          setIsAuthError(true);
+          setIssues([]);
+        } else if (data.success && data.data) {
           setIssues(data.data.issues || []);
           setPagination(data.data.pagination || pagination);
           setUserProfile(data.data.userProfile || null);
@@ -147,6 +153,7 @@ export default function useRecommendedIssues() {
     issues,
     loading,
     error,
+    isAuthError,
     pagination,
     userProfile,
     meta,
