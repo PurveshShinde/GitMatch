@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://gitmatch-delta.vercel.app/sitemap.xml
+

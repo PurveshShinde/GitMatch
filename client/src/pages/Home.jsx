@@ -815,8 +815,26 @@ const HomePage = () => {
               © 2024 GitMatch. All systems operational.
             </p>
             <div className="flex gap-6">
-              <Github className="w-5 h-5 text-slate-600 hover:text-white cursor-pointer transition-colors" />
-              <Code2 className="w-5 h-5 text-slate-600 hover:text-white cursor-pointer transition-colors" />
+              <a
+                href="https://github.com/PurveshShinde/GitMatch"
+                target="_blank"
+                rel="noopener noreferrer"
+                title="GitMatch on GitHub"
+                aria-label="GitMatch GitHub Repository"
+                className="text-slate-600 hover:text-white transition-colors"
+              >
+                <Github className="w-5 h-5" />
+              </a>
+              <a
+                href="https://github.com/PurveshShinde/GitMatch"
+                target="_blank"
+                rel="noopener noreferrer"
+                title="GitMatch Source Code"
+                aria-label="GitMatch Source Code"
+                className="text-slate-600 hover:text-white transition-colors"
+              >
+                <Code2 className="w-5 h-5" />
+              </a>
             </div>
           </div>
         </div>

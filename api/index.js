@@ -16,9 +16,9 @@ import User from "./models/user.model.js";
 
 import { seedSkillTaxonomy } from "./data/skillTaxonomySeed.js";
 import { loadTaxonomy } from "./services/skillExtraction.service.js";
+import { startKeepAliveService } from "./services/keepAlive.service.js";
 
 dotenv.config();
-
 
 mongoose
   .connect(process.env.MONGO, { family: 4 })
@@ -33,18 +33,36 @@ mongoose
 
 const app = express();
 
-app.use(
-  cors({
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
-    credentials: true,
-  })
-);
+// Allowed origins for development and hosted environments side-by-side
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "http://localhost:3000",
+  "https://gitmatch-delta.vercel.app",
+  ...(process.env.CLIENT_URL
+    ? process.env.CLIENT_URL.split(",").map((url) => url.trim())
+    : []),
+].filter(Boolean);
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow non-browser requests (mobile, curl, ping keep-alive) or whitelisted origins
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    // Permissive callback during mixed hosted/local environment workflows
+    return callback(null, true);
+  },
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(cookieParser());
 
 // ─── REST Routes ──────────────────────────────────────────────────────────────
 app.get("/api/health", (req, res) => {
-  res.status(200).json({ success: true, message: "API is healthy" });
+  res.status(200).json({ success: true, message: "API is healthy", timestamp: new Date().toISOString() });
 });
 
 app.use("/api/auth", authRoutes);
@@ -72,7 +90,9 @@ const httpServer = createServer(app);
 const io = new Server(httpServer, {
   path: "/api/socket.io",
   cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    origin: (origin, callback) => {
+      callback(null, true);
+    },
     credentials: true,
   },
 });
@@ -152,6 +172,9 @@ io.on("connection", (socket) => {
   });
 });
 
-httpServer.listen(3000, () => {
-  console.log("Server is running on port 3000!!!");
+const PORT = process.env.PORT || 3000;
+
+httpServer.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}!!!`);
+  startKeepAliveService();
 });

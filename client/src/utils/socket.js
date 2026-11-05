@@ -4,8 +4,8 @@
  * Maintains a single socket connection for the entire app session.
  * Initialize once on login, disconnect on logout.
  *
- * Socket.io path is set to /api/socket.io so it goes through
- * the Vite dev proxy (and later through the reverse proxy in production).
+ * Supports both local development (via Vite dev proxy) and hosted backend
+ * (via VITE_API_BASE_URL).
  */
 
 import { io } from "socket.io-client";
@@ -22,7 +22,9 @@ let socketInstance = null;
 export const initSocket = (token) => {
   if (socketInstance?.connected) return socketInstance;
 
-  socketInstance = io({
+  const targetServer = import.meta.env?.VITE_API_BASE_URL || undefined;
+
+  socketInstance = io(targetServer, {
     path: "/api/socket.io",
     auth: { token },
     reconnectionAttempts: 5,
@@ -30,7 +32,7 @@ export const initSocket = (token) => {
   });
 
   socketInstance.on("connect", () => {
-    console.log("[Socket] Connected:", socketInstance.id);
+    console.log("[Socket] Connected to", targetServer || "local proxy", ":", socketInstance.id);
   });
 
   socketInstance.on("connect_error", (err) => {
