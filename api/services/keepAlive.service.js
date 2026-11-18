@@ -18,24 +18,34 @@ export function startKeepAliveService(options = {}) {
   // Resolve the server URL:
   // 1. RENDER_EXTERNAL_URL: Provided automatically by Render in web service environments
   // 2. SERVER_URL: Explicitly set in .env
-  // 3. Fallback to production Render URL
+  // 3. Fallback to local server URL
   const rawUrl =
     process.env.RENDER_EXTERNAL_URL ||
     process.env.SERVER_URL ||
     options.url ||
-    "https://gitmatch-feqo.onrender.com";
+    "http://localhost:3000";
 
   const cleanBase = rawUrl.replace(/\/+$/, "");
   const targetUrl = `${cleanBase}/api/health`;
 
+  // Keep-alive is disabled by default to prevent exhausting free tier instance hours.
+  // Enable explicitly in your hosting environment (e.g. Render Dashboard) by setting ENABLE_KEEP_ALIVE=true
+  const isEnabled = process.env.ENABLE_KEEP_ALIVE === "true";
+
+  if (!isEnabled) {
+    console.log(
+      `[KeepAlive] Service disabled. Set ENABLE_KEEP_ALIVE=true in your environment variables to enable keep-alive pings.`
+    );
+    return null;
+  }
+
   // Avoid unnecessary self-pings when running locally unless explicitly requested
   const isLocalhost =
     cleanBase.includes("localhost") || cleanBase.includes("127.0.0.1");
-  const forceEnable = process.env.ENABLE_KEEP_ALIVE === "true";
 
-  if (isLocalhost && !forceEnable) {
+  if (isLocalhost) {
     console.log(
-      `[KeepAlive] Local environment detected (${cleanBase}). Keep-alive ping is disabled. Set ENABLE_KEEP_ALIVE=true to enable.`
+      `[KeepAlive] Local environment detected (${cleanBase}). Keep-alive ping is disabled.`
     );
     return null;
   }

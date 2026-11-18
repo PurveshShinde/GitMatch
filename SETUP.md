@@ -94,14 +94,17 @@ EMAIL_PASS="your_smtp_app_password"
 # Network & CORS Configuration
 # -------------------------------------------------------------
 # Comma-separated list of allowed frontend origins (local and production)
-CLIENT_URL="http://localhost:5173,https://gitmatch-delta.vercel.app"
+# Example: http://localhost:5173 or http://localhost:5173,https://your-frontend.vercel.app
+CLIENT_URL="http://localhost:5173"
 
-# Hosted backend URL (used by keep-alive pinger)
-SERVER_URL="https://gitmatch-feqo.onrender.com"
+# Backend server URL (used for local development or hosted deployment)
+# Example: http://localhost:3000 or https://your-backend.onrender.com
+SERVER_URL="http://localhost:3000"
 # Frequency of keep-alive pings (in minutes)
 KEEP_ALIVE_INTERVAL_MINUTES=8
 # Enable or disable automated self-pinging ("true" | "false")
-ENABLE_KEEP_ALIVE="true"
+# Set to "false" to conserve free hosting tier hours (Render)
+ENABLE_KEEP_ALIVE="false"
 
 # -------------------------------------------------------------
 # GitHub OAuth Credentials
